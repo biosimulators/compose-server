@@ -120,7 +120,7 @@ def clean_temp_files(temp_files: List[os.PathLike[str] | str]):
 async def get_process_metadata(
         process_id: str = Query(..., title="Process ID"),
         config: UploadFile = File(..., title="Process Config"),
-        files: List[UploadFile] = File([], title="Files"),
+        files: List[UploadFile] = File(..., title="Files"),
 ) -> ProcessMetadata:
     if not config.filename.endswith('.json') and config.content_type != 'application/json':
         raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")

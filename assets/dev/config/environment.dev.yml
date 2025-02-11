@@ -1,0 +1,35 @@
+name: server
+channels:
+  - pysces
+  - conda-forge
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
+dependencies:
+  - python=3.10
+  - poetry
+  - pysces
+  - pip:
+      - pip-autoremove
+      - requests-toolbelt
+      - python-dotenv
+      - google-cloud-storage
+      - python-multipart
+      - fastapi
+      - toml
+      - typing-extensions
+      - pymongo
+      - pydantic-settings
+      - pydantic
+      - uvicorn
+      - pyyaml
+      - simulariumio
+      - copasi-basico
+      - tellurium
+      - biosimulators-copasi
+      - biosimulators-tellurium
+      - biosimulators-pysces
+      - seaborn
+      - jupyterlab
+      - process-bigraph
+      - bigraph-schema
+      - pytest

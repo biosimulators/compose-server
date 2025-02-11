@@ -1,0 +1,28 @@
+name: Deploy Base Image
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-base:
+    runs-on: ubuntu-latest
+    environment: pipeline-env
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Log in to GHCR
+        run: echo "${{ secrets.REPO_ADMIN_GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.REPO_ADMIN_GH_USERNAME }}" --password-stdin
+      - name: Create gcloud config
+        run: |
+          echo "$BIOSIMULATIONS_GCLOUD_CONFIG" > ./assets/docker/config/.biosimulations.json
+        env:
+          BIOSIMULATIONS_GCLOUD_CONFIG: ${{ secrets.BIO_JSON_CONTENT }}
+      - name: Deploy Base image
+        run: |
+          BASE_VERSION=$(cat ./assets/docker/.BASE_VERSION)
+          BASE_IMG="${{ vars.IMG_ROOT }}-base:$BASE_VERSION"
+          docker build --no-cache -f ./Dockerfile -t $BASE_IMG .
+          docker push $BASE_IMG
+          LATEST_IMG="${{ vars.IMG_ROOT }}-base:latest"
+          docker tag $BASE_IMG $LATEST_IMG
+          docker push $LATEST_IMG

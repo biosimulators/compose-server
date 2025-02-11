@@ -1,0 +1,23 @@
+name: Deploy Gateway
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-gateway:
+    runs-on: ubuntu-latest
+    environment: pipeline-env
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Log in to GHCR
+        run: echo "${{ secrets.REPO_ADMIN_GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.REPO_ADMIN_GH_USERNAME }}" --password-stdin
+      - name: Build gateway service
+        run: |
+          GATEWAY_VERSION=$(python -B .github/parse_container_version.py gateway)
+          GATEWAY_IMG="${{ vars.IMG_ROOT }}-gateway:$GATEWAY_VERSION"
+          docker build --no-cache -f ./gateway/Dockerfile-gateway -t $GATEWAY_IMG .
+          docker push $GATEWAY_IMG
+          LATEST_IMG="${{ vars.IMG_ROOT }}-gateway:latest"
+          docker tag $GATEWAY_IMG $LATEST_IMG
+          docker push $LATEST_IMG

@@ -1,0 +1,36 @@
+[project]
+name = "compose-server"
+version = "0.0.1"
+readme ="README.md"
+description = "Backend for BioCompose: a microservices-based data service leveraging Kubernetes for efficient orchestration of bio-chemical simulation comparisons."
+authors = [{name = "Alex Patrie", email = "alexanderpatrie@gmail.com"}]
+requires-python = ">=3.10"
+dependencies = [
+    "uvicorn",
+    "google-cloud-storage",
+    "chardet",
+    "fastapi",
+    "python-multipart",
+    "h5py",
+    "python-dotenv",
+    "python-libsbml",
+    "pymongo",
+    "biosimulator-processes"
+]
+
+[tool.poetry]
+packages = [
+    {include ="gateway"},
+    {include ="shared"},
+    {include ="worker"}
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--ignore=setup.py"
+python_files = "*.py"

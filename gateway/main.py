@@ -8,20 +8,28 @@ import json
 import os
 import uuid
 from tempfile import mkdtemp
+from typing import *
 
 import dotenv
-from typing import *
-# from tempfile import mkdtemp
-
 import uvicorn
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query, APIRouter, Body
-# from fastapi.responses import FileResponse
-from pydantic import BeforeValidator
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
+from pydantic import BeforeValidator
+
+from shared.database import MongoConnector
+from shared.io import write_uploaded_file, download_file_from_bucket
+from shared.log_config import setup_logging
+from shared.utils import get_project_version, new_job_id
+from shared.environment import (
+    ENV_PATH,
+    DEFAULT_DB_NAME,
+    DEFAULT_DB_TYPE,
+    DEFAULT_JOB_COLLECTION_NAME,
+    DEFAULT_BUCKET_NAME
+)
 
 from gateway.handlers.submit import submit_utc_run, check_composition
-
 from gateway.handlers.health import check_client
 from shared.data_model import (
     BigraphRegistryAddresses,
@@ -43,17 +51,6 @@ from shared.data_model import (
     IncompleteFileJob,
     APP_SERVERS,
     HealthCheckResponse
-)
-from shared.database import MongoConnector
-from shared.io import write_uploaded_file, download_file_from_bucket
-from shared.log_config import setup_logging
-from shared.utils import get_project_version, new_job_id
-from shared.environment import (
-    ENV_PATH,
-    DEFAULT_DB_NAME,
-    DEFAULT_DB_TYPE,
-    DEFAULT_JOB_COLLECTION_NAME,
-    DEFAULT_BUCKET_NAME
 )
 
 

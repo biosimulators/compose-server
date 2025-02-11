@@ -19,23 +19,31 @@ The general workflow should be:
 """
 import asyncio
 import json
-import subprocess
 import tempfile
 
-import dotenv
 import os
 from typing import Any, Mapping, List
 
 from process_bigraph import Composite
+from bsp import app_registrar
 
 from shared.database import MongoConnector
-from shared.dynamic_env import install_request_dependencies, create_dynamic_environment
 from shared.log_config import setup_logging
-from shared.environment import DEFAULT_DB_NAME, DEFAULT_DB_TYPE, DEFAULT_JOB_COLLECTION_NAME, PROJECT_ROOT_PATH
-from worker.workers.runs import RunsWorker
-from worker.workers.composition import CompositionWorker
+from worker.sim_runs.runs import RunsWorker
 
 logger = setup_logging(__file__)
+
+
+class CompositionState(dict):
+    """That which is exported by Composite.save()"""
+    def __new__(cls, *args, **kwargs):
+        return super(CompositionState, cls).__new__(cls, *args, **kwargs)
+
+
+class ResultData(dict):
+    """That which is exported by Composite.gather_results()"""
+    def __new__(cls, *args, **kwargs):
+        return super(ResultData, cls).__new__(cls, *args, **kwargs)
 
 
 class JobDispatcher(object):
@@ -53,27 +61,106 @@ class JobDispatcher(object):
     def current_jobs(self) -> List[Mapping[str, Any]]:
         return self.db_connector.get_jobs()
 
-    async def run(self):
-        # iterate over all jobs
+    async def run(self, limit: int = 5, wait: int = 5):
         i = 0
-        while i < 5:
+        while i < limit:
             for job in self.current_jobs:
                 job_id = job['job_id']
                 if job_id.startswith("run"):
-                    await RunsWorker().dispatch(job=job, db_connector=self.db_connector)
-                else:
-                    await CompositionWorker().dispatch(job=job, db_connector=self.db_connector)
+                    await self.dispatch_run(job)
+                elif job_id.startswith("composition"):
+                    await self.dispatch_composition(job)
             i += 1
-            await asyncio.sleep(1)
+            await asyncio.sleep(wait)
+
+    def create_dynamic_environment(self, job: Mapping[str, Any]) -> int:
+        # TODO: implement this
+        return 0
+
+    async def dispatch_composition(self, job: Mapping[str, Any]):
+        print(f'Registered processes in dispatcher.dispatch: {app_registrar.registered_addresses}')
+
+        job_status = job["status"]
+        job_id = job["job_id"]
+        if job_status.lower() == "pending":
+            try:
+                # install simulators required TODO: implement this
+                self.create_dynamic_environment(job)
+
+                # change job status to IN_PROGRESS
+                await self.db_connector.update_job(job_id=job_id, status="IN_PROGRESS")
+
+                # get request params, instantiate composition, gather formatted results, and get composition
+                input_state = job["spec"]
+                duration = job.get("duration", 1)
+                composition = self.generate_composite(input_state)
+                results = self.generate_composition_results(input_state, duration)
+                state = self.generate_composition_state(composition)
+
+                # change status to complete and write results in DB
+                await self.db_connector.update_job(
+                    job_id=job_id,
+                    status="COMPLETE",
+                    results=results
+                )
+
+                # write new result state to states collection
+                await self.db_connector.write(
+                    collection_name="result_states",
+                    job_id=job_id,
+                    data=state,
+                    last_updated=self.db_connector.timestamp()
+                )
+            except Exception as e:
+                logger.error(f"Exception while dispatching {job_id}: {e}")
+                failed_job = self.generate_failed_job(job_id, str(e))
+                await self.db_connector.update_job(**failed_job)
+
+    def generate_composite(self, input_state) -> Composite:
+        return Composite(
+            config={"state": input_state},
+            core=app_registrar.core
+        )
+
+    def generate_composition_results(self, composition: Composite, duration: int) -> ResultData:
+        # run the composition
+        composition.run(duration)
+
+        # get the results formatted from emitter
+        results = composition.gather_results()[("emitter",)]
+        return ResultData(**results)
+
+    def generate_composition_state(self, composition: Composite) -> CompositionState:
+        temp_dir = tempfile.mkdtemp()
+        temp_fname = f"temp.state.json"
+        composition.save(filename=temp_fname, outdir=temp_dir)
+        temp_path = os.path.join(temp_dir, temp_fname)
+        with open(temp_path, 'r') as f:
+            current_data = json.load(f)
+        os.remove(temp_path)
+
+        return CompositionState(**current_data)
+
+    async def dispatch_run(self, job: Mapping[str, Any]):
+        job_status = job["status"]
+        job_id = job["job_id"]
+        if job_status.lower() == "pending":
+            try:
+                self.create_dynamic_environment(job)
+                await RunsWorker().dispatch(job=job, db_connector=self.db_connector)
+                return
+            except Exception as e:
+                logger.error(f"Exception while dispatching {job_id}: {e}")
+                failed_job = self.generate_failed_job(job_id, str(e))
+                await self.db_connector.update_job(**failed_job)
 
     @staticmethod
     def generate_failed_job(job_id: str, msg: str):
-        return {"job_id": job_id, "status": "FAILED", "result": msg}
+        return {"job_id": job_id, "status": "FAILED", "results": msg}
 
 
 def test_dispatcher():
-    from shared.data_model import CompositionRun
-    import asyncio
+    pass
 
 
 

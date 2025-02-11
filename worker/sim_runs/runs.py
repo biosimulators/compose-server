@@ -2,13 +2,11 @@ import os
 import tempfile
 from typing import Dict, Mapping, Any
 
-from bsp.data_generators import generate_sbml_outputs
-
 from shared.database import MongoConnector
 from shared.environment import DEFAULT_BUCKET_NAME
 from shared.io import download_file, format_smoldyn_configuration, write_uploaded_file
 from shared.data_model import OutputFile
-from worker.data_generator import run_smoldyn, run_readdy, generate_sbml_utc_outputs
+from worker.sim_runs.data_generator import run_smoldyn, run_readdy, generate_sbml_utc_outputs
 
 
 # TODO: CONSOLIDATE THIS INTO A SINGLE COMPOSITION RUNNER

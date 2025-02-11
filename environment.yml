@@ -10,8 +10,8 @@ dependencies:
   - pymem3dg
   # - readdy
   - pip:
-      - amici
+      # - amici
       - cobra
       - copasi-basico
       - smoldyn
-      - tellurium
+      # - tellurium

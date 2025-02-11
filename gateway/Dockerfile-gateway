@@ -7,7 +7,7 @@ LABEL org.opencontainers.image.title="bio-compose-server-gateway" \
     org.opencontainers.image.authors="Alexander Patrie <apatrie@uchc.edu>, BioSimulators Team <info@biosimulators.org>" \
     org.opencontainers.image.vendor="BioSimulators Team"
 
-SHELL ["/usr/bin/env", "bash", "-c"]
+# SHELL ["/usr/bin/env", "bash", "-c"]
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -28,8 +28,7 @@ COPY ./worker /app/worker
 COPY ./common /app/common
 
 RUN echo "Server" > /app/README.md \
-    && mkdir /app/config \
-    && chmod +x /app/entrypoint.sh
+    && mkdir /app/config
 #
 RUN conda update -n base -c conda-forge conda \
     && conda env create -f /app/environment.yml -y \
@@ -44,4 +43,5 @@ RUN conda update -n base -c conda-forge conda \
 #     && conda run -n server poetry lock \
 #     && conda run -n server poetry install
 
-ENTRYPOINT ["conda run -n server uvicorn /app/gateway.main:app --host 0.0.0.0 --port 3001 --reload"]
+CMD ["conda", "run", "-n", "server", "uvicorn", "gateway.main:app", "--host", "0.0.0.0", "--port", "3001", "--reload"]
+

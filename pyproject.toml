@@ -20,9 +20,10 @@ dependencies = [
 
 [tool.poetry]
 packages = [
-    {include ="gateway"},
-    {include ="shared"},
-    {include ="worker"}
+    {include = "gateway"},
+    {include = "shared"},
+    {include = "worker"},
+    {include = "common"}
 ]
 
 [build-system]

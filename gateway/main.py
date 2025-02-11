@@ -24,7 +24,6 @@ from shared.utils import get_project_version, new_job_id
 from shared.environment import (
     ENV_PATH,
     DEFAULT_DB_NAME,
-    DEFAULT_DB_TYPE,
     DEFAULT_JOB_COLLECTION_NAME,
     DEFAULT_BUCKET_NAME
 )
@@ -62,7 +61,7 @@ dotenv.load_dotenv(ENV_PATH)  # NOTE: create an env config at this filepath if d
 APP_VERSION = get_project_version()
 MONGO_URI = os.getenv("MONGO_URI")
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-APP_TITLE = "bio-compose-server"
+APP_TITLE = "compose-server"
 APP_ORIGINS = [
     'http://127.0.0.1:8000',
     'http://127.0.0.1:4200',

@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: gateway
-          image: ghcr.io/biosimulators/bio-compose-server-gateway  # push to ghcr.io/biosimulators/bio-check-compose_worker
+          image: ghcr.io/biosimulators/compose-gateway  # push to ghcr.io/biosimulators/bio-check-compose_worker
           imagePullPolicy: "Always"
           resources:
             requests:

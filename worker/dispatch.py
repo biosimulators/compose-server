@@ -159,9 +159,5 @@ class JobDispatcher(object):
         return {"job_id": job_id, "status": "FAILED", "results": msg}
 
 
-def test_dispatcher():
-    pass
-
-
 
 

@@ -1,108 +1,177 @@
 {
-    "status": "PENDING",
-    "spec": {
-        "particle": {
-            "_type": "process",
-            "address": "local:smoldyn-process",
-            "config": {
-                "model": {
-                    "model_source": "file_uploads/composition-5ec399ca-23b9-405c-bcb8-c002d4a94b1a/MinE.txt"
-                }
-            },
-            "inputs": {
-                "species_counts": [
-                    "species_counts_store"
-                ],
-                "molecules": [
-                    "molecules_store"
-                ]
-            },
-            "outputs": {
-                "species_counts": [
-                    "species_counts_store"
-                ],
-                "molecules": [
-                    "molecules_store"
-                ]
-            }
-        },
-        "ode": {
-            "_type": "process",
-            "address": "local:copasi-process",
-            "config": {
-                "model": {
-                    "model_source": "file_uploads/composition-5ec399ca-23b9-405c-bcb8-c002d4a94b1a/BorisEJB.xml"
-                }
-            },
-            "inputs": {
-                "species_counts": [
-                    "species_counts_store"
-                ],
-                "time": [
-                    "time_store"
-                ]
-            },
-            "outputs": {
-                "species_concentrations": [
-                    "species_concentrations_store"
-                ],
-                "reaction_fluxes": [
-                    "reaction_fluxes_store"
-                ],
-                "time": [
-                    "time_store"
-                ]
-            }
-        },
-        "fba": {
-            "_type": "process",
-            "address": "local:cobra-process",
-            "config": {
-                "model": {
-                    "model_source": "file_uploads/composition-5ec399ca-23b9-405c-bcb8-c002d4a94b1a/BorisEJB.xml"
-                }
-            },
-            "inputs": {
-                "reaction_fluxes": [
-                    "reaction_fluxes_store"
-                ]
-            },
-            "outputs": {
-                "fluxes": [
-                    "fluxes_store"
-                ]
-            }
-        },
-        "emitter": {
-            "_type": "step",
-            "address": "local:ram-emitter",
-            "config": {
-                "emit": {
-                    "molecules": "tree[float]",
-                    "species_concentrations": "tree[float]",
-                    "fluxes": "tree[float]"
-                }
-            },
-            "inputs": {
-                "species_concentrations": [
-                    "species_concentrations_store"
-                ],
-                "fluxes": [
-                    "fluxes_store"
-                ],
-                "molecules": [
-                    "molecules_store"
-                ]
-            }
+  "job_id": "composition-9c436329-cede-4680-9628-8483ee6a5528",
+  "last_updated": "2025-02-11 17:36:41.931444",
+  "status": "PENDING",
+  "simulators": [],
+  "duration": 10,
+  "spec": {
+    "particle": {
+      "_type": "process",
+      "address": "local:smoldyn-process",
+      "config": {
+        "model": {
+          "model_source": "file_uploads/composition-9c436329-cede-4680-9628-8483ee6a5528/MinE.txt"
         }
+      },
+      "inputs": {
+        "species_counts": [
+          "species_counts_store"
+        ],
+        "particles": [
+          "particles_store"
+        ],
+        "geometry": [
+          "geometry_store"
+        ],
+        "net_forces": [
+          "net_forces_store"
+        ],
+        "notable_vertices": [
+          "notable_vertices_store"
+        ]
+      },
+      "outputs": {
+        "species_counts": [
+          "species_counts_store"
+        ],
+        "particles": [
+          "particles_store"
+        ]
+      }
     },
-    "job_id": "composition-5ec399ca-23b9-405c-bcb8-c002d4a94b1a",
-    "last_updated": "2025-01-13 15:36:16.744520",
-    "simulators": [
-        "smoldyn",
-        "copasi",
-        "cobra"
-    ],
-    "duration": 10,
-    "results": {}
+    "membrane": {
+      "_type": "process",
+      "address": "local:simple-membrane-process",
+      "config": {
+        "characteristic_time_step": 1,
+        "geometry": {
+          "type": "icosphere",
+          "parameters": {
+            "radius": 1,
+            "subdivision": 2
+          }
+        },
+        "tension_model": {
+          "modulus": 0.1,
+          "preferred_area": 12.4866
+        },
+        "osmotic_model": {
+          "preferred_volume": 2.9306666666666668,
+          "reservoir_volume": 1,
+          "strength": 0.02,
+          "volume": 2.9
+        },
+        "parameters": {
+          "bending": {
+            "Kbc": 0.0000822
+          },
+          "damping": 0.05
+        },
+        "tolerance": 1e-11,
+        "console_output": false
+      },
+      "inputs": {
+        "geometry": [
+          "geometry_store"
+        ],
+        "velocities": [
+          "velocities_store"
+        ],
+        "protein_density": [
+          "protein_density_store"
+        ],
+        "volume": [
+          "volume_store"
+        ],
+        "preferred_volume": [
+          "preferred_volume_store"
+        ],
+        "reservoir_volume": [
+          "reservoir_volume_store"
+        ],
+        "surface_area": [
+          "surface_area_store"
+        ],
+        "osmotic_strength": [
+          "osmotic_strength_store"
+        ]
+      },
+      "outputs": {
+        "geometry": [
+          "geometry_store"
+        ],
+        "velocities": [
+          "velocities_store"
+        ],
+        "protein_density": [
+          "protein_density_store"
+        ],
+        "volume": [
+          "volume_store"
+        ],
+        "preferred_volume": [
+          "preferred_volume_store"
+        ],
+        "reservoir_volume": [
+          "reservoir_volume_store"
+        ],
+        "surface_area": [
+          "surface_area_store"
+        ],
+        "net_forces": [
+          "net_forces_store"
+        ],
+        "notable_vertices": [
+          "notable_vertices_store"
+        ]
+      }
+    },
+    "emitter": {
+      "_type": "step",
+      "address": "local:ram-emitter",
+      "config": {
+        "emit": {
+          "geometry": "GeometryType",
+          "velocities": "VelocitiesType",
+          "protein_density": "ProteinDensityType",
+          "volume": "float",
+          "preferred_volume": "float",
+          "reservoir_volume": "float",
+          "surface_area": "float",
+          "net_forces": "MechanicalForcesType",
+          "notable_vertices": "list[boolean]"
+        }
+      },
+      "inputs": {
+        "geometry": [
+          "geometry_store"
+        ],
+        "velocities": [
+          "velocities_store"
+        ],
+        "protein_density": [
+          "protein_density_store"
+        ],
+        "volume": [
+          "volume_store"
+        ],
+        "preferred_volume": [
+          "preferred_volume_store"
+        ],
+        "reservoir_volume": [
+          "reservoir_volume_store"
+        ],
+        "surface_area": [
+          "surface_area_store"
+        ],
+        "net_forces": [
+          "net_forces_store"
+        ],
+        "notable_vertices": [
+          "notable_vertices_store"
+        ]
+      }
+    }
+  },
+  "results": {}
 }

@@ -156,7 +156,7 @@ async def submit_composition(
         spec_file: UploadFile = File(..., description="Composition JSON File"),
         # simulators: List[str] = Query(..., description="Simulator package names to use for implementation"),
         duration: int = Query(..., description="Duration of simulation"),
-        model_files: List[UploadFile] = File(...),
+        model_files: List[UploadFile] = File(..., description="List of uploaded model files"),
 ) -> CompositionRun:
     # validate filetype
     if not spec_file.filename.endswith('.json') and spec_file.content_type != 'application/json':
@@ -173,22 +173,25 @@ async def submit_composition(
             # parse list of simulators required from spec addresses
 
             address = node_spec['address']  # MUST be like: local:copasi-process
-            if "emitter" not in address:
-                simulator = address.split(":")[-1].split('-')[0]
-                simulators.append(simulator)
+            # if "emitter" not in address:
+            #     simulator = address.split(":")[-1].split('-')[0]
+            #     simulators.append(simulator)
 
             # upload model files as needed (model filepath MUST match that which is in the spec-->./model-file
+            print(f'Model files: {model_files}')
             for model_file in model_files:
                 spec_model_source = node_spec.get("config").get("model", {}).get("model_source")
-                if (spec_model_source == model_file.filename):
-                    file_ext = os.path.splitext(spec_model_source)[-1]
-                    uploaded_model_source_location = await write_uploaded_file(
-                        job_id=job_id,
-                        uploaded_file=model_file,
-                        bucket_name=DEFAULT_BUCKET_NAME,
-                        extension=file_ext
-                    )
-                    data[node_name]["config"]["model"]["model_source"] = uploaded_model_source_location
+                print(f'Spec model source: {spec_model_source}, model filename {model_file.filename}')
+                if spec_model_source:
+                    if (spec_model_source.split('/')[-1] == model_file.filename):
+                        file_ext = os.path.splitext(spec_model_source)[-1]
+                        uploaded_model_source_location = await write_uploaded_file(
+                            job_id=job_id,
+                            uploaded_file=model_file,
+                            bucket_name=DEFAULT_BUCKET_NAME,
+                            extension=file_ext
+                        )
+                        data[node_name]["config"]["model"]["model_source"] = uploaded_model_source_location
 
         # 1a. verification by fitting the individual process specs to an expected structure
         nodes: List[CompositionNode] = []

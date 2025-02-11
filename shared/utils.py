@@ -114,7 +114,7 @@ def get_project_attribute(attribute: str):
     root_dirpath = os.path.dirname(shared_dirpath)
     pyproject_fp = os.path.join(root_dirpath, "pyproject.toml")
 
-    return toml.load(pyproject_fp)['tool']['poetry'][attribute]
+    return toml.load(pyproject_fp)["project"][attribute]
 
 
 def get_project_version() -> str:

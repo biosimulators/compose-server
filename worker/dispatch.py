@@ -48,7 +48,7 @@ class ResultData(dict):
 
 class JobDispatcher(object):
     def __init__(self,
-                 db_connector: MongoConnector,
+                 db_connector: MongoConnector = None,
                  timeout: int = 5):
         """
         :param db_connector: (`shared.database.MongoConnector`) database connector singleton instantiated with mongo uri.
@@ -87,8 +87,10 @@ class JobDispatcher(object):
                 # install simulators required TODO: implement this
                 self.create_dynamic_environment(job)
 
+                # TODO: Now, search job spec for possible file uploads and read them in locally
+
                 # change job status to IN_PROGRESS
-                await self.db_connector.update_job(job_id=job_id, status="IN_PROGRESS")
+                # await self.db_connector.update_job(job_id=job_id, status="IN_PROGRESS")
 
                 # get request params, instantiate composition, gather formatted results, and get composition
                 input_state = job["spec"]
@@ -97,24 +99,26 @@ class JobDispatcher(object):
                 results = self.generate_composition_results(input_state, duration)
                 state = self.generate_composition_state(composition)
 
+                print(f'Generated results: {results} and state: {state}')
+
                 # change status to complete and write results in DB
-                await self.db_connector.update_job(
-                    job_id=job_id,
-                    status="COMPLETE",
-                    results=results
-                )
+                # await self.db_connector.update_job(
+                #     job_id=job_id,
+                #     status="COMPLETE",
+                #     results=results
+                # )
 
                 # write new result state to states collection
-                await self.db_connector.write(
-                    collection_name="result_states",
-                    job_id=job_id,
-                    data=state,
-                    last_updated=self.db_connector.timestamp()
-                )
+                # await self.db_connector.write(
+                #     collection_name="result_states",
+                #     job_id=job_id,
+                #     data=state,
+                #     last_updated=self.db_connector.timestamp()
+                # )
             except Exception as e:
                 logger.error(f"Exception while dispatching {job_id}: {e}")
                 failed_job = self.generate_failed_job(job_id, str(e))
-                await self.db_connector.update_job(**failed_job)
+                # await self.db_connector.update_job(**failed_job)
 
     def generate_composite(self, input_state) -> Composite:
         return Composite(

@@ -15,7 +15,9 @@ dependencies = [
     "python-dotenv",
     "python-libsbml",
     "pymongo",
-    "biosimulator-processes"
+    "biosimulator-processes",
+    "imageio",
+    "nbformat"
 ]
 
 [tool.poetry]

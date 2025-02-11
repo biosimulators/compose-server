@@ -1,0 +1,28 @@
+{
+  "characteristic_time_step": 1,
+  "geometry": {
+    "type": "icosphere",
+    "parameters": {
+      "radius": 1,
+      "subdivision": 2
+    }
+  },
+  "tension_model": {
+    "modulus": 0.1,
+    "preferred_area": 12.4866
+  },
+  "osmotic_model": {
+    "preferred_volume": 2.9306666666666668,
+    "reservoir_volume": 1,
+    "strength": 0.02,
+    "volume": 2.9
+  },
+  "parameters": {
+    "bending": {
+      "Kbc": 0.0000822
+    },
+    "damping": 0.05
+  },
+  "tolerance": 1e-11,
+  "console_output": false
+}

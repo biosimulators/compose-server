@@ -29,6 +29,14 @@ class BaseClass:
 # -- requests --
 
 @dataclass
+class ProcessMetadata(BaseClass):
+    input_schema: Dict
+    output_schema: Dict
+    initial_state: Dict
+    state: Dict
+
+
+@dataclass
 class Run(BaseClass):
     job_id: str
     last_updated: str

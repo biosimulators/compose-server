@@ -10,9 +10,11 @@ import uuid
 from tempfile import mkdtemp
 from typing import *
 
+from bsp.processes.simple_membrane_process import SimpleMembraneProcess
 import dotenv
 import uvicorn
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query, APIRouter, Body
+from process_bigraph import Process, pp, Composite
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from pydantic import BeforeValidator
@@ -49,7 +51,7 @@ from shared.data_model import (
     TelluriumRun,
     IncompleteFileJob,
     APP_SERVERS,
-    HealthCheckResponse
+    HealthCheckResponse, ProcessMetadata
 )
 
 
@@ -91,7 +93,7 @@ router = APIRouter()
 app = FastAPI(title=APP_TITLE, version=APP_VERSION, servers=APP_SERVERS)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=APP_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
@@ -103,7 +105,79 @@ app.mongo_client = db_conn_gateway.client
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
 
+def clean_temp_files(temp_files: List[os.PathLike[str] | str]):
+    return [os.remove(temp_file) for temp_file in temp_files if len(temp_files)]
+
+
 # -- Composition: submit composition jobs --
+
+@app.post(
+    "/get-process-metadata",
+    operation_id="get-process-metadata",
+    tags=["Composition"],
+    summary="Get the input and output ports, as well as state data from a given process and corresponding parameter configuration."
+)
+async def get_process_metadata(
+        process_id: str = Query(..., title="Process ID"),
+        config: UploadFile = File(..., title="Process Config"),
+        files: List[UploadFile] = File([], title="Files"),
+) -> ProcessMetadata:
+    if not config.filename.endswith('.json') and config.content_type != 'application/json':
+        raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")
+    try:
+        from bsp import app_registrar
+        registry = app_registrar.core.process_registry
+        process_constructor = registry.access(process_id)
+
+        # read uploaded config
+        contents = await config.read()
+        config_data: Dict = json.loads(contents)
+        temp_files = []
+
+        # parse config for model specification TODO: generalize this
+        for uploaded_file in files:
+            if "model" in config_data.keys():
+                specified_model = config_data["model"]["model_source"]
+                if uploaded_file.filename == specified_model.split("/")[-1]:
+                    temp_dir = mkdtemp()
+                    temp_file = os.path.join(temp_dir, uploaded_file.filename)
+                    with open(temp_file, "wb") as f:
+                        uploaded = await uploaded_file.read()
+                        f.write(uploaded)
+                    config_data["model"]["model_source"] = temp_file
+                    temp_files.append(temp_file)
+
+        # instantiate the process for verification and remove the temp files
+        process = process_constructor(config_data, app_registrar.core)
+        inputs = process.inputs()
+        outputs = process.outputs()
+        doc = {
+            "_type": "process",
+            "address": f"local:{process_id}",
+            "config": config_data,
+            "inputs": dict(zip(
+                inputs.keys(),
+                [f"{name}_store" for name in inputs.keys()]
+            )),
+            "outputs": dict(zip(
+                outputs.keys(),
+                [[f"{name}_store"] for name in outputs.keys()]
+            ))
+        }
+        composite = Composite(config={'state': doc}, core=app_registrar.core)
+        state = composite.state
+        state.pop("instance", None)
+        clean_temp_files(temp_files)
+
+        return ProcessMetadata(
+            input_schema=inputs,
+            output_schema=outputs,
+            initial_state=process.initial_state(),
+            state=state,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 @app.get(
     "/get-process-bigraph-addresses",
@@ -118,9 +192,6 @@ async def get_process_bigraph_addresses() -> BigraphRegistryAddresses:
     version = "latest"
 
     return BigraphRegistryAddresses(registered_addresses=addresses, version=version)
-    # else:
-    #     raise HTTPException(status_code=500, detail="Addresses not found.")
-
 
 @app.post(
     "/validate-composition",

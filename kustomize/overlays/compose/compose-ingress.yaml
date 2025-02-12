@@ -26,7 +26,7 @@ spec:
               service:
                 name: gateway
                 port:
-                  number: 3001
+                  number: 8000
           # TODO: Update these paths!!
           # - path: /verify-omex
           #   pathType: Prefix

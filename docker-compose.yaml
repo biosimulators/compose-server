@@ -12,7 +12,7 @@ services:
     build:
       context: .
       dockerfile: ./gateway/Dockerfile-gateway
-    image: ghcr.io/biosimulators/compose-gateway:0.0.1
+    image: ghcr.io/biosimulators/compose-gateway:0.0.2
     container_name: gateway
     networks:
       - compnet

@@ -1,14 +1,66 @@
 import importlib
 import uuid
 from logging import Logger
-from typing import Dict
+from typing import *
 
 from fastapi import UploadFile, HTTPException
+from process_bigraph import Composite
 
 from shared.data_model import UtcRun, AmiciRun, CobraRun, CopasiRun, TelluriumRun, ValidatedComposition
 from shared.database import DatabaseConnector
 from shared.environment import DEFAULT_JOB_COLLECTION_NAME, DEFAULT_BUCKET_NAME
 from shared.io import write_uploaded_file
+
+from gateway.handlers.states import generate_mem3dg_state
+
+
+async def submit_pymem3dg_run(
+        db_connector: DatabaseConnector,
+        job_id: str,
+        characteristic_time_step: float,
+        tension_modulus: float,
+        preferred_area: float,
+        preferred_volume: float,
+        reservoir_volume: float,
+        osmotic_strength: float,
+        volume: float,
+        parameters_config: dict[str, float | int],
+        damping: float,
+        tolerance: Optional[float] = 1e-11,
+        geometry_type: Optional[str] = None,
+        geometry_parameters: Optional[Dict[str, Union[float, int]]] = None,
+        mesh_file: Optional[str] = None,
+):
+    input_state = generate_mem3dg_state(
+        characteristic_time_step=characteristic_time_step,
+        tension_modulus=tension_modulus,
+        preferred_area=preferred_area,
+        preferred_volume=preferred_volume,
+        reservoir_volume=reservoir_volume,
+        osmotic_strength=osmotic_strength,
+        volume=volume,
+        parameters_config=parameters_config,
+        damping=damping,
+        tolerance=tolerance,
+        geometry_type=geometry_type,
+        geometry_parameters=geometry_parameters,
+        mesh_file=mesh_file
+    )
+
+    mem3dg_job = Mem3dgRun(
+        job_id=job_id,
+        last_updated=db_connector.timestamp(),
+        status="PENDING",
+        **input_state
+    )
+
+    # save job to db
+    await db_connector.write(
+        collection_name=DEFAULT_JOB_COLLECTION_NAME,
+        **mem3dg_job.serialize()
+    )
+
+    return mem3dg_job
 
 
 async def submit_utc_run(

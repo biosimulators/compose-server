@@ -264,6 +264,89 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthCheckResponse'
+  /run-mem3dg-process:
+    post:
+      tags:
+      - Processes
+      summary: Run a Mem3dg Process
+      operationId: run-mem3dg-process
+      parameters:
+      - name: characteristic_time_step
+        in: query
+        required: true
+        schema:
+          type: number
+          title: Characteristic Time Step
+      - name: tension_modulus
+        in: query
+        required: true
+        schema:
+          type: number
+          title: Tension Modulus
+      - name: preferred_area
+        in: query
+        required: true
+        schema:
+          type: number
+          title: Preferred Area
+      - name: preferred_volume
+        in: query
+        required: true
+        schema:
+          type: number
+          title: Preferred Volume
+      - name: reservoir_volume
+        in: query
+        required: true
+        schema:
+          type: number
+          title: Reservoir Volume
+      - name: osmotic_strength
+        in: query
+        required: true
+        schema:
+          type: number
+          title: Osmotic Strength
+      - name: volume
+        in: query
+        required: true
+        schema:
+          type: number
+          title: Volume
+      - name: damping
+        in: query
+        required: true
+        schema:
+          type: number
+          title: Damping
+      - name: tolerance
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: 1.0e-11
+          title: Tolerance
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_run-mem3dg-process'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Mem3dgRun'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /run-amici-process:
     post:
       tags:
@@ -928,6 +1011,16 @@ components:
       required:
       - model_file
       title: Body_run-copasi-step
+    Body_run-mem3dg-process:
+      properties:
+        mesh_file:
+          type: string
+          format: binary
+          title: Mesh File
+      type: object
+      required:
+      - mesh_file
+      title: Body_run-mem3dg-process
     Body_run-readdy-step:
       properties:
         species_config:
@@ -1212,6 +1305,88 @@ components:
       - version
       - status
       title: HealthCheckResponse
+    Mem3dgRun:
+      properties:
+        job_id:
+          type: string
+          title: Job Id
+        last_updated:
+          type: string
+          title: Last Updated
+        status:
+          type: string
+          title: Status
+        characteristic_time_step:
+          type: number
+          title: Characteristic Time Step
+        tension_modulus:
+          type: number
+          title: Tension Modulus
+        preferred_area:
+          type: number
+          title: Preferred Area
+        preferred_volume:
+          type: number
+          title: Preferred Volume
+        reservoir_volume:
+          type: number
+          title: Reservoir Volume
+        osmotic_strength:
+          type: number
+          title: Osmotic Strength
+        volume:
+          type: number
+          title: Volume
+        parameters_config:
+          additionalProperties:
+            anyOf:
+            - type: number
+            - type: integer
+          type: object
+          title: Parameters Config
+        damping:
+          type: number
+          title: Damping
+        tolerance:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Tolerance
+          default: 1.0e-11
+        geometry_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Geometry Type
+        geometry_parameters:
+          anyOf:
+          - additionalProperties:
+              anyOf:
+              - type: number
+              - type: integer
+            type: object
+          - type: 'null'
+          title: Geometry Parameters
+        mesh_file:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Mesh File
+      type: object
+      required:
+      - job_id
+      - last_updated
+      - status
+      - characteristic_time_step
+      - tension_modulus
+      - preferred_area
+      - preferred_volume
+      - reservoir_volume
+      - osmotic_strength
+      - volume
+      - parameters_config
+      - damping
+      title: Mem3dgRun
     OutputData:
       properties:
         job_id:

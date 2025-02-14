@@ -30,7 +30,7 @@ from shared.environment import (
     DEFAULT_BUCKET_NAME
 )
 
-from gateway.handlers.submit import submit_utc_run, check_composition
+from gateway.handlers.submit import submit_utc_run, check_composition, submit_pymem3dg_run
 from gateway.handlers.health import check_client
 from shared.data_model import (
     BigraphRegistryAddresses,
@@ -51,7 +51,7 @@ from shared.data_model import (
     TelluriumRun,
     IncompleteFileJob,
     APP_SERVERS,
-    HealthCheckResponse, ProcessMetadata
+    HealthCheckResponse, ProcessMetadata, Mem3dgRun
 )
 
 
@@ -213,6 +213,7 @@ async def validate_composition(
         document_data: Dict = json.loads(contents)
         return check_composition(document_data)
     except json.JSONDecodeError:
+
         raise HTTPException(status_code=400, detail="Invalid JSON format.")
 
 
@@ -460,6 +461,53 @@ def check_health() -> HealthCheckResponse:
 
 
 # -- Processes: submit single simulator jobs --
+
+@app.post(
+    "/run-mem3dg-process",
+    response_model=Mem3dgRun,
+    name="Run Mem3dg Process",
+    operation_id="run-mem3dg-process",
+    tags=["Processes"],
+    summary="Run a Mem3dg Process",
+)
+async def run_mem3dg_process(
+        characteristic_time_step: float = Query(...),
+        tension_modulus: float = Query(...),
+        preferred_area: float = Query(...),
+        preferred_volume: float = Query(...),
+        reservoir_volume: float = Query(...),
+        osmotic_strength: float = Query(...),
+        volume: float = Query(...),
+        damping: float = Query(...),
+        tolerance: Optional[float] = Query(default=1e-11),
+        # geometry_type: Optional[str] = None,
+        # geometry_parameters: Optional[Dict[str, Union[float, int]]] = None,
+        mesh_file: UploadFile = File(...),
+)-> Mem3dgRun:
+    job_id = 'run-mem3dg-' + str(uuid.uuid4())
+    uploaded_file_location = await write_uploaded_file(
+        job_id=job_id,
+        uploaded_file=mesh_file,
+        bucket_name=DEFAULT_BUCKET_NAME,
+        extension='.ply'
+    )
+    mem3dg_run = await submit_pymem3dg_run(
+        job_id=job_id,
+        db_connector=db_conn_gateway,
+        characteristic_time_step=characteristic_time_step,
+        tension_modulus=tension_modulus,
+        preferred_area=preferred_area,
+        preferred_volume=preferred_volume,
+        reservoir_volume=reservoir_volume,
+        osmotic_strength=osmotic_strength,
+        volume=volume,
+        damping=damping,
+        tolerance=tolerance,
+        mesh_file=uploaded_file_location,
+    )
+
+    return mem3dg_run
+
 
 @app.post(
     "/run-amici-process",

@@ -59,6 +59,23 @@ class SmoldynRun(Run):
 
 
 @dataclass
+class Mem3dgRun(Run):
+    characteristic_time_step: float
+    tension_modulus: float
+    preferred_area: float
+    preferred_volume: float
+    reservoir_volume: float
+    osmotic_strength: float
+    volume: float
+    parameters_config: dict[str, float | int]
+    damping: float
+    tolerance: Optional[float] = 1e-11
+    geometry_type: Optional[str] = None
+    geometry_parameters: Optional[Dict[str, Union[float, int]]] = None
+    mesh_file: Optional[str] = None
+
+
+@dataclass
 class UtcRun(Run):
     simulator: str
     model_file: str

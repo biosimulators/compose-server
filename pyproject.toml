@@ -29,8 +29,7 @@ packages = [
     {include = "gateway"},
     {include = "shared"},
     {include = "worker"},
-    {include = "common"},
-    {include = "tests"}
+    {include = "common"}
 ]
 
 [build-system]

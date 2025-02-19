@@ -10,6 +10,12 @@ import h5py
 import numpy as np
 
 
+def handle_exception(scope: str) -> str:
+    tb_str = traceback.format_exc()
+    error_message = pformat(f"{scope}:\n{tb_str}")
+    return error_message
+
+
 def new_job_id(tag: str) -> str:
     return f"{tag}-{unique_id()}"
 

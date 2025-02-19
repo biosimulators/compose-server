@@ -34,6 +34,7 @@ from shared.database import MongoConnector
 from shared.environment import DEFAULT_BUCKET_NAME
 from shared.log_config import setup_logging
 from worker.sim_runs.runs import RunsWorker
+from shared.utils import handle_exception
 
 
 logger = setup_logging(__file__)
@@ -97,11 +98,9 @@ class JobDispatcher(object):
                 input_state = job["spec"]
                 duration = job.get("duration", 1)
                 for process_name, process_spec in input_state.items():
-                    print(f'Process {process_name} has spec {process_spec}')
                     process_config = process_spec["config"]
                     for config_key, config_value in process_config.items():
                         if config_key == "model":
-                            print(f'Process has model: {config_value}')
                             source_fp = config_value["model_source"]
                             temp_dest = tempfile.mkdtemp()
                             local_fp = download_file_from_bucket(source_blob_path=source_fp, out_dir=temp_dest, bucket_name=DEFAULT_BUCKET_NAME)
@@ -134,8 +133,9 @@ class JobDispatcher(object):
                     last_updated=self.db_connector.timestamp()
                 )
             except Exception as e:
-                logger.error(f"Exception while dispatching {job_id}: {e}")
-                failed_job = self.generate_failed_job(job_id, str(e))
+                message = handle_exception(scope=job_id + str(e).strip())
+                logger.error(message)
+                failed_job = self.generate_failed_job(job_id, message)
                 await self.db_connector.update_job(**failed_job)
 
     def generate_composite(self, input_state) -> Composite:
@@ -172,8 +172,9 @@ class JobDispatcher(object):
                 await RunsWorker().dispatch(job=job, db_connector=self.db_connector)
                 return
             except Exception as e:
-                logger.error(f"Exception while dispatching {job_id}: {e}")
-                failed_job = self.generate_failed_job(job_id, str(e))
+                message = handle_exception(scope=job_id + str(e).strip())
+                logger.error(message)
+                failed_job = self.generate_failed_job(job_id, message)
                 await self.db_connector.update_job(**failed_job)
 
     @staticmethod

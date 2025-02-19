@@ -24,7 +24,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile-worker
-    image: ghcr.io/biosimulators/compose-worker:0.0.1
+    image: ghcr.io/biosimulators/compose-worker:0.0.2
     container_name: worker
     networks:
       - compnet

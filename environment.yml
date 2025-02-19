@@ -14,6 +14,6 @@ dependencies:
       - cobra
       - copasi-basico
       - smoldyn
-      - tellurium
+      # - tellurium
       - imageio
       - nbformat

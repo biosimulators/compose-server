@@ -10,13 +10,21 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
       - name: Log in to GHCR
         run: echo "${{ secrets.REPO_ADMIN_GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.REPO_ADMIN_GH_USERNAME }}" --password-stdin
+
+      - name: Create gcloud config
+        run: |
+          echo "$BIOSIMULATIONS_GCLOUD_CONFIG" > ./assets/docker/config/.biosimulations.json
+        env:
+          BIOSIMULATIONS_GCLOUD_CONFIG: ${{ secrets.BIO_JSON_CONTENT }}
+
       - name: Build worker service
         run: |
           WORKER_VERSION=$(python -B .github/parse_container_version.py worker)
           WORKER_IMG="${{ vars.IMG_ROOT }}-worker:$WORKER_VERSION"
-          docker build --no-cache -f ./worker/Dockerfile-worker -t $WORKER_IMG .
+          docker build --no-cache -f ./gateway/Dockerfile-worker -t $WORKER_IMG .
           docker push $WORKER_IMG
           LATEST_IMG="${{ vars.IMG_ROOT }}-worker:latest"
           docker tag $WORKER_IMG $LATEST_IMG

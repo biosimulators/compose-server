@@ -19,17 +19,17 @@ services:
     depends_on:
       - mongodb
 
-  # worker:
-  #   platform: linux/amd64
-  #   build:
-  #     context: .
-  #     dockerfile: ./worker/Dockerfile-worker
-  #   image: ghcr.io/biosimulators/compose-worker:0.0.1
-  #   container_name: worker
-  #   networks:
-  #     - compnet
-  #   depends_on:
-  #     - mongodb
+  worker:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile-worker
+    image: ghcr.io/biosimulators/compose-worker:0.0.1
+    container_name: worker
+    networks:
+      - compnet
+    depends_on:
+      - mongodb
 
 networks:
   compnet:

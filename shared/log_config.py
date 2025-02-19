@@ -30,4 +30,5 @@ def setup_logging(fname: str, return_all: bool = False):
     # Add the console handler to the root logger and uvicorn logger
     root_logger.addHandler(console_handler)
 
-    return root_logger, console_handler if return_all else root_logger
+    # return root_logger, console_handler if return_all else root_logger
+    return root_logger

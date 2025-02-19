@@ -91,15 +91,15 @@ def generate_mem3dg_state(
     }
 
     for key, value in parameters_config.items():
-        doc['config']['parameters'][key] = value
+        doc['membrane']['config']['parameters'][key] = value
 
     if geometry_parameters is not None and geometry_type is not None:
-        doc['config']['geometry'] = {
+        doc['membrane']['config']['geometry'] = {
             'type': geometry_type,
             'parameters': geometry_parameters
         }
     else:
-        doc['config']['mesh_file'] = mesh_file
+        doc['membrane']['config']['mesh_file'] = mesh_file
 
     return doc
 

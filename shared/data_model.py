@@ -58,8 +58,20 @@ class SmoldynRun(Run):
     dt: float
 
 
+
 @dataclass
-class Mem3dgRun(Run):
+class Mem3dgRun(CompositionRun):
+    """
+    :param simulators:
+    :param duration:
+    :param spec:
+    :param results:
+    """
+    pass
+
+
+@dataclass
+class _Mem3dgRun(Run):
     characteristic_time_step: float
     tension_modulus: float
     preferred_area: float

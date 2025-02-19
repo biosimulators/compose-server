@@ -24,12 +24,17 @@ import tempfile
 import os
 from typing import Any, Mapping, List
 
+import bsp
 from process_bigraph import Composite
 from bsp import app_registrar
+from bsp.processes.simple_membrane_process import SimpleMembraneProcess
 
+from shared.io import download_file_from_bucket
 from shared.database import MongoConnector
+from shared.environment import DEFAULT_BUCKET_NAME
 from shared.log_config import setup_logging
 from worker.sim_runs.runs import RunsWorker
+
 
 logger = setup_logging(__file__)
 
@@ -75,6 +80,7 @@ class JobDispatcher(object):
 
     def create_dynamic_environment(self, job: Mapping[str, Any]) -> int:
         # TODO: implement this
+        print(f'Creating dynamic environment for job {job["job_id"]}')
         return 0
 
     async def dispatch_composition(self, job: Mapping[str, Any]):
@@ -92,14 +98,42 @@ class JobDispatcher(object):
                 # change job status to IN_PROGRESS
                 # await self.db_connector.update_job(job_id=job_id, status="IN_PROGRESS")
 
-                # get request params, instantiate composition, gather formatted results, and get composition
+                # get request params and parse remote file uploads if needed
                 input_state = job["spec"]
                 duration = job.get("duration", 1)
-                composition = self.generate_composite(input_state)
-                results = self.generate_composition_results(input_state, duration)
-                state = self.generate_composition_state(composition)
 
-                print(f'Generated results: {results} and state: {state}')
+                for process_name, process_spec in input_state.items():
+                    print(f'Process {process_name} has spec {process_spec}')
+                    process_config = process_spec["config"]
+                    for config_key, config_value in process_config.items():
+                        if config_key == "model":
+                            print(f'Process has model: {config_value}')
+                            source_fp = config_value["model_source"]
+                            temp_dest = tempfile.mkdtemp()
+                            local_fp = download_file_from_bucket(source_blob_path=source_fp, out_dir=temp_dest, bucket_name=DEFAULT_BUCKET_NAME)
+                            process_spec["config"]["model"]["model_source"] = local_fp
+                        elif "mesh_file" in config_key:
+                            source_fp = process_config["mesh_file"]
+                            temp_dest = tempfile.mkdtemp()
+                            local_fp = download_file_from_bucket(source_blob_path=source_fp, out_dir=temp_dest, bucket_name=DEFAULT_BUCKET_NAME)
+                            process_spec["config"]["mesh_file"] = local_fp
+
+                print(f'Now the input state is:\n{input_state}')
+                process = SimpleMembraneProcess(config=input_state['membrane']['config'], core=app_registrar.core)
+                print(process)
+                # generate composition instance
+                composition = self.generate_composite(input_state)
+                print(f'Composition state is:\n{composition.state}')
+                # get composition results and state
+
+                # results = self.generate_composition_results(input_state, duration)
+                state = self.generate_composition_state(composition)
+                print(f'Composition state is:\n{state}')
+                process = composition.state['membrane']['instance']
+                print(f'Process state is:\n{process.initial_state()}')
+                process.update(process.initial_state(), 1)
+
+                # print(f'Generated results: {results} and state: {state}')
 
                 # change status to complete and write results in DB
                 # await self.db_connector.update_job(
@@ -121,12 +155,14 @@ class JobDispatcher(object):
                 # await self.db_connector.update_job(**failed_job)
 
     def generate_composite(self, input_state) -> Composite:
+        print(f'Got the input state in generate_composite:\n{input_state}')
         return Composite(
             config={"state": input_state},
             core=app_registrar.core
         )
 
     def generate_composition_results(self, composition: Composite, duration: int) -> ResultData:
+        print(f'Got the composition before results\n{composition.state}')
         # run the composition
         composition.run(duration)
 

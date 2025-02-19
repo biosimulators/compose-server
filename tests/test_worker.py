@@ -29,8 +29,8 @@ def test_membrane_job():
 
     with open(TEST_REQUEST_PATH, 'r') as f:
         state = json.load(f)
-
-    worker.generate_results(input_state=state, duration=3)
+    print(f'Got the input state\n:{state}')
+    # worker.generate_results(input_state=state, duration=3)
     # print(f'Emitter results:\n')
     # pp(worker.results)
     # print(f'Composition state:\n')

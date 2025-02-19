@@ -471,6 +471,7 @@ def check_health() -> HealthCheckResponse:
     summary="Run a Mem3dg Process",
 )
 async def run_mem3dg_process(
+        duration: int = Query(...),
         characteristic_time_step: float = Query(...),
         tension_modulus: float = Query(...),
         preferred_area: float = Query(...),
@@ -479,6 +480,7 @@ async def run_mem3dg_process(
         osmotic_strength: float = Query(...),
         volume: float = Query(...),
         damping: float = Query(...),
+        bending_kbc: float = Query(...),
         tolerance: Optional[float] = Query(default=1e-11),
         # geometry_type: Optional[str] = None,
         # geometry_parameters: Optional[Dict[str, Union[float, int]]] = None,
@@ -491,6 +493,12 @@ async def run_mem3dg_process(
         bucket_name=DEFAULT_BUCKET_NAME,
         extension='.ply'
     )
+
+    parameters = {
+        "bending": {
+            "Kbc": bending_kbc,
+        }
+    }
     mem3dg_run = await submit_pymem3dg_run(
         job_id=job_id,
         db_connector=db_conn_gateway,
@@ -504,6 +512,8 @@ async def run_mem3dg_process(
         damping=damping,
         tolerance=tolerance,
         mesh_file=uploaded_file_location,
+        parameters_config=parameters,
+        duration=duration
     )
 
     return mem3dg_run

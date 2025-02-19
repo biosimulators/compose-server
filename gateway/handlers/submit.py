@@ -6,7 +6,7 @@ from typing import *
 from fastapi import UploadFile, HTTPException
 from process_bigraph import Composite
 
-from shared.data_model import UtcRun, AmiciRun, CobraRun, CopasiRun, TelluriumRun, ValidatedComposition
+from shared.data_model import UtcRun, AmiciRun, CobraRun, CopasiRun, TelluriumRun, ValidatedComposition, Mem3dgRun
 from shared.database import DatabaseConnector
 from shared.environment import DEFAULT_JOB_COLLECTION_NAME, DEFAULT_BUCKET_NAME
 from shared.io import write_uploaded_file
@@ -26,6 +26,7 @@ async def submit_pymem3dg_run(
         volume: float,
         parameters_config: dict[str, float | int],
         damping: float,
+        duration: int,
         tolerance: Optional[float] = 1e-11,
         geometry_type: Optional[str] = None,
         geometry_parameters: Optional[Dict[str, Union[float, int]]] = None,
@@ -51,7 +52,9 @@ async def submit_pymem3dg_run(
         job_id=job_id,
         last_updated=db_connector.timestamp(),
         status="PENDING",
-        **input_state
+        simulators=["pymem3dg"],
+        duration=duration,
+        spec=input_state
     )
 
     # save job to db

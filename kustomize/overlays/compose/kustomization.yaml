@@ -7,13 +7,10 @@ namespace: compose
 images:
 - name: mongo
   newTag: 8.0-rc
-- name: ghcr.io/biosimulators/compose-gateway
-  # stable is 0.0.3
-  newTag: 0.0.5
+- name: ghcr.io/biosimulators/compose-gateway  # stable is 0.0.3
+  newTag: 0.0.8
 - name: ghcr.io/biosimulators/compose-worker
-  newTag: 0.0.2
-# - name: ghcr.io/biosimulators/bio-compose-server-base
-#   newTag: 0.0.7-dev
+  newTag: 0.0.4
 
 replicas:
 - count: 1

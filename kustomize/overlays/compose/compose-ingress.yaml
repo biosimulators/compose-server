@@ -27,6 +27,13 @@ spec:
                 name: gateway
                 port:
                   number: 3001
+          # - path: /
+          #   pathType: Prefix
+          #   backend:
+          #     service:
+          #       name: gateway
+          #       port:
+          #         number: 3001
           # TODO: Update these paths!!
           # - path: /verify-omex
           #   pathType: Prefix
@@ -35,25 +42,3 @@ spec:
           #       name: gateway
           #       port:
           #         number: 3001
-          # - path: /verify-sbml
-          #   pathType: Prefix
-          #   backend:
-          #     service:
-          #       name: compose-gateway
-          #       port:
-          #         number: 3001
-          # - path: /get-compatible
-          #   pathType: Prefix
-          #   backend:
-          #     service:
-          #       name: gateway
-          #       port:
-          #         number: 3001
-          # - path: /get-verify-output/
-          #   pathType: Prefix
-          #   backend:
-          #     service:
-          #       name: compose-gateway
-          #       port:
-          #         number: 3001
-#

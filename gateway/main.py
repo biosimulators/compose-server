@@ -134,7 +134,7 @@ async def get_process_metadata(
         from bsp import app_registrar
 
         # TODO: implement this as a method param once new registries are established
-        # assert local_registry, "You must use the local registry. Please note that this must be true by default for now."
+        local_registry = True
         registry = app_registrar.core.process_registry
         process_constructor = registry.access(process_id)
         job_id = f'get-process-metadata-{process_id}-' + str(uuid.uuid4())
@@ -196,8 +196,6 @@ async def get_process_metadata(
         # remove temp files
         clean_temp_files(temp_files)
 
-        print(f'The currently registered types:')
-        pp(app_registrar.core.types())
         return ProcessMetadata(
             process_address=f"local:{process_id}" if local_registry else process_id,
             input_schema=inputs,

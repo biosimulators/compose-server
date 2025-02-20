@@ -126,12 +126,15 @@ async def get_process_metadata(
         config: UploadFile = File(..., title="Process Config"),
         model_files: List[UploadFile] = File(..., title="Files"),
         return_composite_state: bool = Query(default=True, title="Return Composite State"),
-        local_registry: bool = Query(default=True, title="Whether to use the local registry. Please note that this must be true by default for now."),
+        # local_registry: bool = Query(default=True, title="Whether to use the local registry. Please note that this must be true by default for now."),
 ) -> ProcessMetadata:
     if not config.filename.endswith('.json') and config.content_type != 'application/json':
         raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")
     try:
         from bsp import app_registrar
+
+        # TODO: implement this as a method param once new registries are established
+        # assert local_registry, "You must use the local registry. Please note that this must be true by default for now."
         registry = app_registrar.core.process_registry
         process_constructor = registry.access(process_id)
         job_id = f'get-process-metadata-{process_id}-' + str(uuid.uuid4())

@@ -22,7 +22,7 @@ from pydantic import BeforeValidator
 from shared.database import MongoConnector
 from shared.io import write_uploaded_file, download_file_from_bucket
 from shared.log_config import setup_logging
-from shared.utils import get_project_version, new_job_id, handle_exception, serialize_numpy
+from shared.utils import get_project_version, new_job_id, handle_exception, serialize_numpy, clean_temp_files
 from shared.environment import (
     ENV_PATH,
     DEFAULT_DB_NAME,
@@ -106,10 +106,6 @@ app.add_middleware(
 app.mongo_client = db_conn_gateway.client
 
 PyObjectId = Annotated[str, BeforeValidator(str)]
-
-
-def clean_temp_files(temp_files: List[os.PathLike[str] | str]):
-    return [os.remove(temp_file) for temp_file in temp_files if len(temp_files)]
 
 
 # -- Composition: submit composition jobs --
@@ -220,7 +216,6 @@ async def get_process_bigraph_addresses() -> BigraphRegistryAddresses:
     from bsp import app_registrar
     addresses = app_registrar.registered_addresses
     version = "latest"
-
     return BigraphRegistryAddresses(registered_addresses=addresses, version=version)
 
 
@@ -240,6 +235,7 @@ async def get_bigraph_schema_types() -> list[BigraphSchemaType]:
     return registered_types
 
 
+# TODO: make this more specific in checking
 @app.post(
     "/validate-composition",
     response_model=ValidatedComposition,
@@ -260,6 +256,10 @@ async def validate_composition(
         document_data: Dict = json.loads(contents)
         return check_composition(document_data)
     except json.JSONDecodeError as e:
+        message = handle_exception("validate-composition-json-decode-error") + f'-{str(e)}'
+        logger.error(message)
+        raise HTTPException(status_code=400, detail=message)
+    except Exception as e:
         message = handle_exception("validate-composition") + f'-{str(e)}'
         logger.error(message)
         raise HTTPException(status_code=400, detail=message)

@@ -10,6 +10,10 @@ import h5py
 import numpy as np
 
 
+def clean_temp_files(temp_files: List[os.PathLike[str] | str]):
+    return [os.remove(temp_file) for temp_file in temp_files if len(temp_files)]
+
+
 def serialize_numpy(obj: Union[np.ndarray, list, dict]) -> Union[np.ndarray, list, dict]:
     """Recursively convert NumPy arrays inside a dictionary or list into lists."""
     if isinstance(obj, np.ndarray):

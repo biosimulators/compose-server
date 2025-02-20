@@ -268,7 +268,7 @@ class SmoldynOutput(FileResponse):
 @dataclass
 class ValidatedComposition(BaseClass):
     valid: bool
-    invalid_nodes: Dict[str, str]
+    invalid_nodes: Optional[list[dict[str, str]]] = field(default=None)
 
 
 @dataclass

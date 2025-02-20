@@ -135,14 +135,17 @@ async def submit_utc_run(
 # -- spec validation --
 
 def check_composition(document_data: Dict) -> ValidatedComposition:
-    validation = {'valid': True, 'invalid_nodes': []}
+    validation = {'valid': True}
+    invalid_nodes = []
     for node_name, node_spec in document_data.items():
-        try:
-            assert node_spec["inputs"], f"{node_name} is missing inputs"
-            assert node_spec["outputs"], f"{node_name} is missing outputs"
-        except AssertionError as e:
-            invalid_node = {node_name: str(e)}
-            validation['invalid_nodes'].append(invalid_node)
-            validation['valid'] = False
+        if "emitter" not in node_name:
+            try:
+                assert node_spec["inputs"], f"{node_name} is missing inputs"
+                assert node_spec["outputs"], f"{node_name} is missing outputs"
+            except AssertionError as e:
+                invalid_node = {node_name: str(e)}
+                invalid_nodes.append(invalid_node)
+                validation['valid'] = False
 
+    validation['invalid_nodes'] = invalid_nodes if len(invalid_nodes) else None
     return ValidatedComposition(**validation)

@@ -25,14 +25,6 @@ paths:
           type: boolean
           title: Return Composite State
           default: true
-      - name: local_registry
-        in: query
-        required: false
-        schema:
-          type: boolean
-          title: Whether to use the local registry. Please note that this must be
-            true by default for now.
-          default: true
       requestBody:
         required: true
         content:
@@ -1676,14 +1668,17 @@ components:
           type: boolean
           title: Valid
         invalid_nodes:
-          additionalProperties:
-            type: string
-          type: object
+          anyOf:
+          - items:
+              additionalProperties:
+                type: string
+              type: object
+            type: array
+          - type: 'null'
           title: Invalid Nodes
       type: object
       required:
       - valid
-      - invalid_nodes
       title: ValidatedComposition
     ValidationError:
       properties:

@@ -38,6 +38,13 @@ class ProcessMetadata(BaseClass):
 
 
 @dataclass
+class BigraphSchemaType(BaseClass):
+    type_id: str
+    default_value: str
+    description: str
+
+
+@dataclass
 class Run(BaseClass):
     job_id: str
     last_updated: str

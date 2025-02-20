@@ -17,6 +17,22 @@ paths:
         schema:
           type: string
           title: Process ID
+        example: simple-membrane-process
+      - name: return_composite_state
+        in: query
+        required: false
+        schema:
+          type: boolean
+          title: Return Composite State
+          default: true
+      - name: local_registry
+        in: query
+        required: false
+        schema:
+          type: boolean
+          title: Whether to use the local registry. Please note that this must be
+            true by default for now.
+          default: true
       requestBody:
         required: true
         content:
@@ -49,6 +65,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BigraphRegistryAddresses'
+  /get-bigraph-schema-types:
+    get:
+      tags:
+      - Composition
+      summary: Get process bigraph implementation addresses for composition specifications.
+      operationId: get-bigraph-schema-types
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/BigraphSchemaType'
+                type: array
+                title: Response Get-Bigraph-Schema-Types
   /validate-composition:
     post:
       tags:
@@ -271,6 +303,12 @@ paths:
       summary: Run a Mem3dg Process
       operationId: run-mem3dg-process
       parameters:
+      - name: duration
+        in: query
+        required: true
+        schema:
+          type: integer
+          title: Duration
       - name: characteristic_time_step
         in: query
         required: true
@@ -319,6 +357,12 @@ paths:
         schema:
           type: number
           title: Damping
+      - name: bending_kbc
+        in: query
+        required: true
+        schema:
+          type: number
+          title: Bending Kbc
       - name: tolerance
         in: query
         required: false
@@ -913,6 +957,23 @@ components:
       - version
       - registered_addresses
       title: BigraphRegistryAddresses
+    BigraphSchemaType:
+      properties:
+        type_id:
+          type: string
+          title: Type Id
+        default_value:
+          type: string
+          title: Default Value
+        description:
+          type: string
+          title: Description
+      type: object
+      required:
+      - type_id
+      - default_value
+      - description
+      title: BigraphSchemaType
     Body_generate-simularium-file:
       properties:
         uploaded_file:
@@ -934,7 +995,7 @@ components:
           type: string
           format: binary
           title: Process Config
-        files:
+        model_files:
           items:
             type: string
             format: binary
@@ -943,7 +1004,7 @@ components:
       type: object
       required:
       - config
-      - files
+      - model_files
       title: Body_get-process-metadata
     Body_run-amici-process:
       properties:
@@ -1316,76 +1377,28 @@ components:
         status:
           type: string
           title: Status
-        characteristic_time_step:
-          type: number
-          title: Characteristic Time Step
-        tension_modulus:
-          type: number
-          title: Tension Modulus
-        preferred_area:
-          type: number
-          title: Preferred Area
-        preferred_volume:
-          type: number
-          title: Preferred Volume
-        reservoir_volume:
-          type: number
-          title: Reservoir Volume
-        osmotic_strength:
-          type: number
-          title: Osmotic Strength
-        volume:
-          type: number
-          title: Volume
-        parameters_config:
-          additionalProperties:
-            anyOf:
-            - type: number
-            - type: integer
+        simulators:
+          items:
+            type: string
+          type: array
+          title: Simulators
+        duration:
+          type: integer
+          title: Duration
+        spec:
           type: object
-          title: Parameters Config
-        damping:
-          type: number
-          title: Damping
-        tolerance:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Tolerance
-          default: 1.0e-11
-        geometry_type:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Geometry Type
-        geometry_parameters:
-          anyOf:
-          - additionalProperties:
-              anyOf:
-              - type: number
-              - type: integer
-            type: object
-          - type: 'null'
-          title: Geometry Parameters
-        mesh_file:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Mesh File
+          title: Spec
+        results:
+          type: object
+          title: Results
       type: object
       required:
       - job_id
       - last_updated
       - status
-      - characteristic_time_step
-      - tension_modulus
-      - preferred_area
-      - preferred_volume
-      - reservoir_volume
-      - osmotic_strength
-      - volume
-      - parameters_config
-      - damping
+      - simulators
+      - duration
+      - spec
       title: Mem3dgRun
     OutputData:
       properties:
@@ -1410,6 +1423,9 @@ components:
       title: OutputData
     ProcessMetadata:
       properties:
+        process_address:
+          type: string
+          title: Process Address
         input_schema:
           type: object
           title: Input Schema
@@ -1420,14 +1436,16 @@ components:
           type: object
           title: Initial State
         state:
-          type: object
+          anyOf:
+          - type: object
+          - type: 'null'
           title: State
       type: object
       required:
+      - process_address
       - input_schema
       - output_schema
       - initial_state
-      - state
       title: ProcessMetadata
     ReaddyParticleConfig:
       properties:

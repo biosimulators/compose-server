@@ -48,7 +48,10 @@ from shared.data_model import (
     TelluriumRun,
     IncompleteFileJob,
     APP_SERVERS,
-    HealthCheckResponse, ProcessMetadata, Mem3dgRun
+    HealthCheckResponse,
+    ProcessMetadata,
+    Mem3dgRun,
+    BigraphSchemaType
 )
 from gateway.handlers.submit import submit_utc_run, check_composition, submit_pymem3dg_run
 from gateway.handlers.health import check_client
@@ -190,6 +193,8 @@ async def get_process_metadata(
         # remove temp files
         clean_temp_files(temp_files)
 
+        print(f'The currently registered types:')
+        pp(app_registrar.core.types())
         return ProcessMetadata(
             process_address=f"local:{process_id}" if local_registry else process_id,
             input_schema=inputs,
@@ -216,6 +221,23 @@ async def get_process_bigraph_addresses() -> BigraphRegistryAddresses:
     version = "latest"
 
     return BigraphRegistryAddresses(registered_addresses=addresses, version=version)
+
+
+@app.get(
+    "/get-bigraph-schema-types",
+    operation_id="get-bigraph-schema-types",
+    response_model=list[BigraphSchemaType],
+    tags=["Composition"],
+    summary="Get process bigraph implementation addresses for composition specifications.")
+async def get_bigraph_schema_types() -> list[BigraphSchemaType]:
+    # TODO: adjust this. Currently, if the optional simulator dep is not included, the process implementations will not show up
+    from bsp import app_registrar
+    registered_types = []
+    for type_name, type_spec in app_registrar.core.types().items():
+        type_spec = BigraphSchemaType(type_id=type_name, default_value=type_spec.get("_default", {}), description=type_spec.get("_description"))
+        registered_types.append(type_spec)
+    return registered_types
+
 
 @app.post(
     "/validate-composition",

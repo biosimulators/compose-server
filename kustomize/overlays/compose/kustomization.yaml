@@ -11,7 +11,7 @@ images:
   # stable is 0.0.3
   newTag: 0.0.5
 - name: ghcr.io/biosimulators/compose-worker
-  newTag: 0.0.1
+  newTag: 0.0.2
 # - name: ghcr.io/biosimulators/bio-compose-server-base
 #   newTag: 0.0.7-dev
 

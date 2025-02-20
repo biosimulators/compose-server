@@ -34,7 +34,7 @@ class ProcessMetadata(BaseClass):
     input_schema: Dict
     output_schema: Dict
     initial_state: Dict
-    state: Optional[Dict] = field(default_factory=dict)
+    state: Optional[Dict] = field(default=None)
 
 
 @dataclass

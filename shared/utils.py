@@ -10,6 +10,18 @@ import h5py
 import numpy as np
 
 
+def serialize_numpy(obj: Union[np.ndarray, list, dict]) -> Union[np.ndarray, list, dict]:
+    """Recursively convert NumPy arrays inside a dictionary or list into lists."""
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: serialize_numpy(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [serialize_numpy(item) for item in obj]
+    else:
+        return obj
+
+
 def handle_exception(scope: str) -> str:
     tb_str = traceback.format_exc()
     error_message = pformat(f"{scope}:\n{tb_str}")

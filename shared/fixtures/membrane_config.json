@@ -1,6 +1,12 @@
 {
   "characteristic_time_step": 1,
-  "mesh_file": "oblate.ply",
+  "geometry": {
+    "type": "icosphere",
+    "parameters": {
+      "radius": 1,
+      "subdivision": 2
+    }
+  },
   "tension_model": {
     "modulus": 0.1,
     "preferred_area": 12.4866
@@ -18,5 +24,5 @@
     "damping": 0.05
   },
   "tolerance": 1e-11,
-  "console_output": true
+  "console_output": false
 }

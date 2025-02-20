@@ -30,10 +30,11 @@ class BaseClass:
 
 @dataclass
 class ProcessMetadata(BaseClass):
+    process_address: str
     input_schema: Dict
     output_schema: Dict
     initial_state: Dict
-    state: Dict
+    state: Optional[Dict] = field(default_factory=dict)
 
 
 @dataclass

@@ -20,6 +20,8 @@ services:
       - compnet
     depends_on:
       - mongodb
+    environment:
+      - STANDALONE=False
 
   worker:
     platform: linux/amd64

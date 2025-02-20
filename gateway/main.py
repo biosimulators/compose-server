@@ -7,10 +7,10 @@ Author: Alexander Patrie <@AlexPatrie>
 import json
 import os
 import uuid
+import sys
 from tempfile import mkdtemp
 from typing import *
 
-from bsp.processes.simple_membrane_process import SimpleMembraneProcess
 import dotenv
 import uvicorn
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query, APIRouter, Body
@@ -22,16 +22,13 @@ from pydantic import BeforeValidator
 from shared.database import MongoConnector
 from shared.io import write_uploaded_file, download_file_from_bucket
 from shared.log_config import setup_logging
-from shared.utils import get_project_version, new_job_id
+from shared.utils import get_project_version, new_job_id, handle_exception, serialize_numpy
 from shared.environment import (
     ENV_PATH,
     DEFAULT_DB_NAME,
     DEFAULT_JOB_COLLECTION_NAME,
     DEFAULT_BUCKET_NAME
 )
-
-from gateway.handlers.submit import submit_utc_run, check_composition, submit_pymem3dg_run
-from gateway.handlers.health import check_client
 from shared.data_model import (
     BigraphRegistryAddresses,
     CompositionNode,
@@ -53,16 +50,23 @@ from shared.data_model import (
     APP_SERVERS,
     HealthCheckResponse, ProcessMetadata, Mem3dgRun
 )
+from gateway.handlers.submit import submit_utc_run, check_composition, submit_pymem3dg_run
+from gateway.handlers.health import check_client
 
 
 logger = setup_logging(__file__)
 
-# load dev env (local)...see note below
-dotenv.load_dotenv(ENV_PATH)  # NOTE: create an env config at this filepath if dev
+# NOTE: create an env config at this filepath if dev
+dotenv.load_dotenv(ENV_PATH)
+
+STANDALONE_GATEWAY = bool(os.getenv("STANDALONE_GATEWAY"))
+MONGO_URI = os.getenv("MONGO_URI") if not STANDALONE_GATEWAY else os.getenv("STANDALONE_MONGO_URI")
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+
+
+# -- app constraints and components -- #
 
 APP_VERSION = get_project_version()
-MONGO_URI = os.getenv("MONGO_URI")
-GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 APP_TITLE = "compose-server"
 APP_ORIGINS = [
     'http://127.0.0.1:8000',
@@ -86,8 +90,6 @@ APP_ORIGINS = [
     'https://compose.biosimulations.org'
 ]
 
-# -- app components -- #
-
 db_conn_gateway = MongoConnector(connection_uri=MONGO_URI, database_id=DEFAULT_DB_NAME)
 router = APIRouter()
 app = FastAPI(title=APP_TITLE, version=APP_VERSION, servers=APP_SERVERS)
@@ -98,10 +100,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
-
 app.mongo_client = db_conn_gateway.client
 
-# It will be represented as a `str` on the model so that it can be serialized to JSON. Represents an ObjectId field in the database.
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
 
@@ -114,13 +114,16 @@ def clean_temp_files(temp_files: List[os.PathLike[str] | str]):
 @app.post(
     "/get-process-metadata",
     operation_id="get-process-metadata",
+    response_model=ProcessMetadata,
     tags=["Composition"],
     summary="Get the input and output ports, as well as state data from a given process and corresponding parameter configuration."
 )
 async def get_process_metadata(
-        process_id: str = Query(..., title="Process ID"),
+        process_id: str = Query(..., title="Process ID", example="simple-membrane-process"),
         config: UploadFile = File(..., title="Process Config"),
-        files: List[UploadFile] = File(..., title="Files"),
+        model_files: List[UploadFile] = File(..., title="Files"),
+        return_composite_state: bool = Query(default=True, title="Return Composite State"),
+        local_registry: bool = Query(default=True, title="Whether to use the local registry. Please note that this must be true by default for now."),
 ) -> ProcessMetadata:
     if not config.filename.endswith('.json') and config.content_type != 'application/json':
         raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")
@@ -128,6 +131,7 @@ async def get_process_metadata(
         from bsp import app_registrar
         registry = app_registrar.core.process_registry
         process_constructor = registry.access(process_id)
+        job_id = f'get-process-metadata-{process_id}-' + str(uuid.uuid4())
 
         # read uploaded config
         contents = await config.read()
@@ -135,7 +139,8 @@ async def get_process_metadata(
         temp_files = []
 
         # parse config for model specification TODO: generalize this
-        for uploaded_file in files:
+        for uploaded_file in model_files:
+            # case: has a SedModel config spec (ode, fba, smoldyn)
             if "model" in config_data.keys():
                 specified_model = config_data["model"]["model_source"]
                 if uploaded_file.filename == specified_model.split("/")[-1]:
@@ -146,11 +151,23 @@ async def get_process_metadata(
                         f.write(uploaded)
                     config_data["model"]["model_source"] = temp_file
                     temp_files.append(temp_file)
+            # case: has a mesh file config (membrane)
+            elif "mesh_file" in config_data.keys():
+                temp_dir = mkdtemp()
+                temp_file = os.path.join(temp_dir, uploaded_file.filename)
+                with open(temp_file, "wb") as f:
+                    uploaded = await uploaded_file.read()
+                    f.write(uploaded)
+                config_data["mesh_file"] = temp_file
+                temp_files.append(temp_file)
 
-        # instantiate the process for verification and remove the temp files
+        # instantiate the process for verification
         process = process_constructor(config_data, app_registrar.core)
-        inputs = process.inputs()
-        outputs = process.outputs()
+        inputs: dict = process.inputs()
+        outputs: dict = process.outputs()
+        initial_state: dict = serialize_numpy(process.initial_state())
+
+        # define composition spec from process instance and verify with composite instance
         doc = {
             "_type": "process",
             "address": f"local:{process_id}",
@@ -165,18 +182,25 @@ async def get_process_metadata(
             ))
         }
         composite = Composite(config={'state': doc}, core=app_registrar.core)
-        state = composite.state
-        state.pop("instance", None)
+        state = {}
+        if return_composite_state:
+            state: dict = composite.state
+            state.pop("instance", None)
+
+        # remove temp files
         clean_temp_files(temp_files)
 
         return ProcessMetadata(
+            process_address=f"local:{process_id}" if local_registry else process_id,
             input_schema=inputs,
             output_schema=outputs,
-            initial_state=process.initial_state(),
+            initial_state=initial_state,
             state=state,
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        message = handle_exception("process-metadata") + f'-{str(e)}'
+        logger.error(message)
+        raise HTTPException(status_code=400, detail=message)
 
 
 @app.get(
@@ -212,9 +236,10 @@ async def validate_composition(
         contents = await spec_file.read()
         document_data: Dict = json.loads(contents)
         return check_composition(document_data)
-    except json.JSONDecodeError:
-
-        raise HTTPException(status_code=400, detail="Invalid JSON format.")
+    except json.JSONDecodeError as e:
+        message = handle_exception("validate-composition") + f'-{str(e)}'
+        logger.error(message)
+        raise HTTPException(status_code=400, detail=message)
 
 
 @app.post(
@@ -250,10 +275,8 @@ async def submit_composition(
             #     simulators.append(simulator)
 
             # upload model files as needed (model filepath MUST match that which is in the spec-->./model-file
-            print(f'Model files: {model_files}')
             for model_file in model_files:
                 spec_model_source = node_spec.get("config").get("model", {}).get("model_source")
-                print(f'Spec model source: {spec_model_source}, model filename {model_file.filename}')
                 if spec_model_source:
                     if (spec_model_source.split('/')[-1] == model_file.filename):
                         file_ext = os.path.splitext(spec_model_source)[-1]
@@ -294,7 +317,9 @@ async def submit_composition(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON format.")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        message = handle_exception("submit-composition") + f'-{str(e)}'
+        logger.error(message)
+        raise HTTPException(status_code=400, detail=message)
 
 
 @app.get(
@@ -310,8 +335,9 @@ async def get_composition_state(job_id: str):
 
         return spec
     except Exception as e:
-        logger.error(str(e))
-        raise HTTPException(status_code=500, detail=f"No specification found for job with id: {job_id}.")
+        message = handle_exception("get-composition-state") + f'-{str(e)}'
+        logger.error(message)
+        raise HTTPException(status_code=400, detail=message)
 
 
 # -- Data: output data --
@@ -486,37 +512,42 @@ async def run_mem3dg_process(
         # geometry_parameters: Optional[Dict[str, Union[float, int]]] = None,
         mesh_file: UploadFile = File(...),
 )-> Mem3dgRun:
-    job_id = 'run-mem3dg-' + str(uuid.uuid4())
-    uploaded_file_location = await write_uploaded_file(
-        job_id=job_id,
-        uploaded_file=mesh_file,
-        bucket_name=DEFAULT_BUCKET_NAME,
-        extension='.ply'
-    )
+    try:
+        job_id = 'run-mem3dg-' + str(uuid.uuid4())
+        uploaded_file_location = await write_uploaded_file(
+            job_id=job_id,
+            uploaded_file=mesh_file,
+            bucket_name=DEFAULT_BUCKET_NAME,
+            extension='.ply'
+        )
 
-    parameters = {
-        "bending": {
-            "Kbc": bending_kbc,
+        parameters = {
+            "bending": {
+                "Kbc": bending_kbc,
+            }
         }
-    }
-    mem3dg_run = await submit_pymem3dg_run(
-        job_id=job_id,
-        db_connector=db_conn_gateway,
-        characteristic_time_step=characteristic_time_step,
-        tension_modulus=tension_modulus,
-        preferred_area=preferred_area,
-        preferred_volume=preferred_volume,
-        reservoir_volume=reservoir_volume,
-        osmotic_strength=osmotic_strength,
-        volume=volume,
-        damping=damping,
-        tolerance=tolerance,
-        mesh_file=uploaded_file_location,
-        parameters_config=parameters,
-        duration=duration
-    )
+        mem3dg_run = await submit_pymem3dg_run(
+            job_id=job_id,
+            db_connector=db_conn_gateway,
+            characteristic_time_step=characteristic_time_step,
+            tension_modulus=tension_modulus,
+            preferred_area=preferred_area,
+            preferred_volume=preferred_volume,
+            reservoir_volume=reservoir_volume,
+            osmotic_strength=osmotic_strength,
+            volume=volume,
+            damping=damping,
+            tolerance=tolerance,
+            mesh_file=uploaded_file_location,
+            parameters_config=parameters,
+            duration=duration
+        )
 
-    return mem3dg_run
+        return mem3dg_run
+    except Exception as e:
+        message = handle_exception("run-mem3dg-process") + f'-{str(e)}'
+        logger.error(message)
+        raise HTTPException(status_code=400, detail=message)
 
 
 @app.post(

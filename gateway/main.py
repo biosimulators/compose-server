@@ -353,8 +353,11 @@ async def submit_composition(
 async def get_composition_state(job_id: str):
     try:
         spec = await db_conn_gateway.read(collection_name="result_states", job_id=job_id)
-        if "_id" in spec.keys():
-            spec.pop("_id")
+        if spec is None:
+            raise HTTPException(status_code=404, detail="Could not find result state.")
+        else:
+            if "_id" in spec.keys():
+                spec.pop("_id")
 
         return spec
     except Exception as e:

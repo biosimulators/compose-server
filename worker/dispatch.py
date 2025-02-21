@@ -74,7 +74,7 @@ class JobDispatcher(object):
                 job_id = job['job_id']
                 if job_id.startswith("run"):
                     await self.dispatch_run(job)
-                elif job_id.startswith("composition"):
+                elif job_id.startswith("composition") or job_id.startswith('run-mem3dg-'):
                     await self.dispatch_composition(job)
             i += 1
             await asyncio.sleep(wait)

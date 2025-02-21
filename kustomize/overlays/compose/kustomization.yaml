@@ -10,7 +10,7 @@ images:
 - name: ghcr.io/biosimulators/compose-gateway  # stable is 0.0.3
   newTag: 0.0.9
 - name: ghcr.io/biosimulators/compose-worker
-  newTag: 0.0.4
+  newTag: 0.0.5
 
 replicas:
 - count: 1

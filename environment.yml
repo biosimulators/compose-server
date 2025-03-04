@@ -1,11 +1,10 @@
 name: compose-server
 channels:
-  - defaults
   - readdy
   - conda-forge
 dependencies:
   - pip
-  - python=3.10
+  # - python=3.10
   - poetry
   - pymem3dg
   # - readdy

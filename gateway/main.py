@@ -10,17 +10,20 @@ import uuid
 import sys
 from tempfile import mkdtemp
 from typing import *
+import asyncio
+# import websockets
+
 
 import dotenv
 import uvicorn
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query, APIRouter, Body
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, APIRouter, Body, WebSocket
 from process_bigraph import Process, pp, Composite
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from pydantic import BeforeValidator
 
 from shared.database import MongoConnector
-from shared.io import write_uploaded_file, download_file_from_bucket
+from shared.io import write_uploaded_file, download_file_from_bucket, write_local_file
 from shared.log_config import setup_logging
 from shared.utils import get_project_version, new_job_id, handle_exception, serialize_numpy, clean_temp_files
 from shared.environment import (
@@ -106,6 +109,43 @@ app.add_middleware(
 app.mongo_client = db_conn_gateway.client
 
 PyObjectId = Annotated[str, BeforeValidator(str)]
+clients: List[WebSocket] = []
+BASE_WS_URL = "ws://{function_name}:8000/ws"
+
+
+manager = ConnectionManager()
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """Handles incoming WebSocket connections from the server."""
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            print(f"Received from server: {data}")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+
+@app.post("/send-data/")
+async def send_data(dx: float, dy: float, dz: float):
+    """Receives HTTP data and forwards it to the WebSocket server."""
+    server_url = "ws://localhost:8001/ws"
+
+    # request = Packet(dx=dx, dy=dy, dz=dz)
+    request = {'dx': dx, 'dy': dy, 'dz': dz}
+    try:
+        async with websockets.connect(server_url) as websocket:
+            packet: str = json.dumps(
+                request
+            )
+            await websocket.send(packet)
+
+            response: str | bytes = await websocket.recv()
+            return json.loads(response)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"WebSocket error: {str(e)}")
 
 
 # -- Composition: submit composition jobs --
@@ -515,6 +555,7 @@ def check_health() -> HealthCheckResponse:
 # TODO: refactor job id parsing in worker for dispatch
 # -- Processes: submit single simulator jobs --
 
+
 @app.post(
     "/run-mem3dg-process",
     response_model=Mem3dgRun,
@@ -525,15 +566,15 @@ def check_health() -> HealthCheckResponse:
 )
 async def run_mem3dg_process(
         duration: int = Query(...),
-        characteristic_time_step: float = Query(...),
-        tension_modulus: float = Query(...),
-        preferred_area: float = Query(...),
-        preferred_volume: float = Query(...),
-        reservoir_volume: float = Query(...),
-        osmotic_strength: float = Query(...),
-        volume: float = Query(...),
-        damping: float = Query(...),
-        bending_kbc: float = Query(...),
+        characteristic_time_step: float = Query(..., example=1),
+        tension_modulus: float = Query(..., example=0.1),
+        preferred_area: float = Query(..., example=12.486),
+        preferred_volume: float = Query(..., example=2.933),
+        reservoir_volume: float = Query(..., example=1),
+        osmotic_strength: float = Query(..., example=0.02),
+        volume: float = Query(..., example=2.9),
+        damping: float = Query(..., example=0.05),
+        bending_kbc: float = Query(..., example=0.008),
         tolerance: Optional[float] = Query(default=1e-11),
         # geometry_type: Optional[str] = None,
         # geometry_parameters: Optional[Dict[str, Union[float, int]]] = None,
@@ -547,7 +588,6 @@ async def run_mem3dg_process(
             bucket_name=DEFAULT_BUCKET_NAME,
             extension='.ply'
         )
-
         parameters = {
             "bending": {
                 "Kbc": bending_kbc,
@@ -569,7 +609,7 @@ async def run_mem3dg_process(
             parameters_config=parameters,
             duration=duration
         )
-
+        print(f'Got the mem3dg run: {mem3dg_run}')
         return mem3dg_run
     except Exception as e:
         message = handle_exception("run-mem3dg-process") + f'-{str(e)}'

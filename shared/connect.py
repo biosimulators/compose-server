@@ -1,15 +1,33 @@
+import json
 from abc import abstractmethod, ABC
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import *
 
+from fastapi import WebSocket
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
 from pymongo.results import UpdateResult
 
 from shared.environment import DEFAULT_JOB_COLLECTION_NAME, DEFAULT_DB_NAME
+
+
+class SocketConnectionManager:
+    def __init__(self):
+        self.active_connections = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def send_data(self, message: dict, websocket: WebSocket):
+        await websocket.send_text(json.dumps(message))
+        return await websocket.receive_text()
 
 
 class DatabaseConnector(ABC):

@@ -1,0 +1,87 @@
+# FROM condaforge/miniforge3:24.9.2-0
+FROM condaforge/miniforge3:latest
+
+LABEL org.opencontainers.image.title="bio-compose-server-worker" \
+    org.opencontainers.image.description="Base Docker image for BioCompose REST API management, job processing, and datastorage with MongoDB, ensuring scalable and robust performance." \
+    org.opencontainers.image.url="https://compose.biosimulators.org/" \
+    org.opencontainers.image.source="https://github.com/biosimulators/bio-compose-server" \
+    org.opencontainers.image.authors="Alexander Patrie <apatrie@uchc.edu>, BioSimulators Team <info@biosimulators.org>" \
+    org.opencontainers.image.vendor="BioSimulators Team"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+ARG INSTALL_WORKER
+
+# RUN apt-get update \
+#     && apt-get install -y \
+#         meson \
+#         g++ \
+#         gfortran \
+#         libblas-dev \
+#         liblapack-dev \
+#         libgfortran5 \
+#         libhdf5-dev \
+#         libhdf5-serial-dev \
+#         libatlas-base-dev \
+#         cmake \
+#         make \
+#         git \
+#         build-essential \
+#         python3-dev \
+#         swig \
+#         libc6-dev \
+#         libx11-dev \
+#         libc6 \
+#         libgl1-mesa-dev \
+#         pkg-config \
+#         curl \
+#         tar \
+#         libgl1-mesa-glx \
+#         libice6 \
+#         libsm6 \
+#         gnupg \
+#         libstdc++6 \
+#         && apt-get clean
+
+# copy assets
+COPY assets/docker/config/.biosimulations.json /.google/.bio-compose.json
+COPY assets/docker/config/.pys_usercfg.ini /Pysces/.pys_usercfg.ini
+COPY assets/docker/config/.pys_usercfg.ini /root/Pysces/.pys_usercfg.ini
+COPY tests/test_fixtures /test_fixtures
+
+WORKDIR /app
+
+# copy env configs
+COPY ./environment.yml /app/environment.yml
+COPY ./pyproject.toml /app/pyproject.toml
+COPY ./gateway /app/gateway
+COPY ./shared /app/shared
+COPY ./worker /app/worker
+COPY ./common /app/common
+
+RUN echo "Server" > /app/README.md \
+    && mkdir /app/config
+
+# create base env
+RUN conda install cmake ninja pybind11 scikit-build-core -y
+RUN conda run pip install -e . \
+    && conda env export --from-history > /app/env-export.yml
+
+# && conda install --file=/app/environment.yml \
+# RUN mamba install conda-forge::readdy -y
+# RUN mamba create -n server python=3.11 cmake ninja pybind11 scikit-build-core -y
+# RUN mamba run -n server pip install -e . \
+#     && mamba env export -n server --from-history > /app/env-export.yml
+
+# handle worker(simulators)
+# RUN if [ "$INSTALL_WORKER" == "1" ]; then \
+#     mamba install conda-forge::pymem3dg -y conda-forge::readdy \
+# fi
+
+#     && conda install -n bsp conda-forge::readdy -y
+
+
+# build alone with:
+# docker build -f ./assets/docker/Dockerfile-base -t BASE .
+
+

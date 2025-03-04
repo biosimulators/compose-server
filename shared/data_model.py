@@ -2,6 +2,8 @@
 # -- worker models -- #
 import os
 from dataclasses import dataclass, asdict, field
+import abc
+import dataclasses as dc
 from enum import Enum
 from typing import *
 
@@ -19,9 +21,6 @@ class BaseModel(_BaseModel):
 @dataclass
 class BaseClass:
     """Base Python Dataclass multipurpose class with custom app configuration."""
-    def to_dict(self):
-        return asdict(self)
-
     def serialize(self):
         return asdict(self)
 
@@ -224,8 +223,8 @@ class CompositionNode(BaseClass):
     inputs: Dict[str, List[str]]
     outputs: Optional[Dict[str, List[str]]] = None
 
-    def to_dict(self):
-        rep = super().to_dict()
+    def serialize(self):
+        rep = super().serialize()
         rep.pop("name")
         if not self.outputs:
             rep.pop("outputs")
@@ -246,7 +245,7 @@ class CompositionSpec(BaseClass):
     @property
     def spec(self):
         return {
-            node_spec.name: node_spec.to_dict()
+            node_spec.name: node_spec.serialize()
             for node_spec in self.nodes
         }
 
@@ -294,6 +293,12 @@ class IncompleteFileJob(BaseClass):
     source: str
 
 
+@dataclass
+class MembraneConfig(BaseClass):
+    characteristic_time_step: float
+
+
+
 class JobStatuses:
     PENDING = "PENDING"
     IN_PROGRESS = "IN_PROGRESS"
@@ -315,6 +320,72 @@ APP_SERVERS = [
     #     "description": "Alternate Development server"
     # }
 ]
+
+
+# --- websocket client ---
+
+# This class represents a change to object values (x, y, z are placeholders)
+@dataclass
+class Packet(BaseClass):
+    dx: float
+    dy: float
+    dz: float
+
+
+# --- websocket server ---
+
+@dataclass
+class StateData(BaseClass):
+    def __init__(self, **data):
+        """Dynamically define and set state attributes via **data."""
+        self._set_attributes(**data)
+
+    def _set_attributes(self, **data):
+        for k, v in data.items():
+            self.set(k, v)
+
+    def set(self, attribute_id: str, value: float | int | str | bool | list | dict):
+        return setattr(self, attribute_id, value)
+
+    def get(self, attribute_id: str):
+        return getattr(self, attribute_id)
+
+
+@dataclass
+class AccumulationState(StateData):
+    def set_data(self, **params):
+        for k, v in params.items():
+            prev = getattr(self, k)
+            setattr(self, k, prev + v)
+
+
+@dataclass
+class Region(BaseClass):
+    region_id: str
+    metadata: dict[str, str]
+
+
+@dataclass
+class BodyRegionState(AccumulationState):
+    region: Region
+    state: AccumulationState
+
+
+@dataclass
+class Patient(BaseClass):
+    name: str
+    dob: str
+    age: float
+    history_metadata: dict[str, str]
+
+
+@dataclass
+class BodyState(AccumulationState):
+    patient: Patient
+    region_states: list[BodyRegionState]
+
+
+
 
 
 

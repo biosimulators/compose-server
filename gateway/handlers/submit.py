@@ -15,7 +15,6 @@ from gateway.handlers.states import generate_mem3dg_state
 
 
 async def submit_pymem3dg_run(
-        db_connector: DatabaseConnector,
         job_id: str,
         characteristic_time_step: float,
         tension_modulus: float,
@@ -31,6 +30,7 @@ async def submit_pymem3dg_run(
         geometry_type: Optional[str] = None,
         geometry_parameters: Optional[Dict[str, Union[float, int]]] = None,
         mesh_file: Optional[str] = None,
+        db_connector: Optional[DatabaseConnector] = None,
 ):
     input_state = generate_mem3dg_state(
         characteristic_time_step=characteristic_time_step,
@@ -58,10 +58,11 @@ async def submit_pymem3dg_run(
     )
 
     # save job to db
-    await db_connector.write(
-        collection_name=DEFAULT_JOB_COLLECTION_NAME,
-        **mem3dg_job.serialize()
-    )
+    if db_connector:
+        await db_connector.write(
+            collection_name=DEFAULT_JOB_COLLECTION_NAME,
+            **mem3dg_job.serialize()
+        )
 
     return mem3dg_job
 

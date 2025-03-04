@@ -17,7 +17,18 @@ dependencies = [
     "pymongo",
     "biosimulator-processes",
     "imageio",
-    "nbformat"
+    "nbformat",
+    "websockets"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "deptry" ,
+    "mypy",
+    "pre-commit",
+    "tox"
 ]
 
 # also make sure to install readdy and pymem3dg:
@@ -32,13 +43,32 @@ packages = [
     {include = "common"}
 ]
 
+# [build-system]
+# requires = ["poetry-core"]
+# build-backend = "poetry.core.masonry.api"
+
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling", "setuptools_scm"]
+build-backend = "hatchling.build"
 
+# [build-system]
+# requires = ["scikit-build-core[conda]", "setuptools_scm", "hatchling"]
+# build-backend = "scikit_build_core.build"
 
-[tool.pytest.ini_options]
-addopts = "-s"
-testpaths = ["tests"]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["gateway", "shared", "worker", "common"]
+
+# [tool.hatch.envs.default]
+# dependencies = [
+#     "conda: numpy",
+#     "conda: scipy",
+#     "conda: matplotlib",
+#     "conda: pybind11"
+# ]
+
+[tool.setuptools_scm]  # Required for automatic versioning
+version_scheme = "guess-next-dev"
+local_scheme = "node-and-date"

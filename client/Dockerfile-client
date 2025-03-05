@@ -1,0 +1,41 @@
+FROM condaforge/miniforge3:24.9.2-0
+
+LABEL org.opencontainers.image.title="bio-compose-server-gateway" \
+    org.opencontainers.image.description="Base Docker image for BioCompose REST API management, job processing, and datastorage with MongoDB, ensuring scalable and robust performance." \
+    org.opencontainers.image.url="https://compose.biosimulators.org/" \
+    org.opencontainers.image.source="https://github.com/biosimulators/bio-compose-server" \
+    org.opencontainers.image.authors="Alexander Patrie <apatrie@uchc.edu>, BioSimulators Team <info@biosimulators.org>" \
+    org.opencontainers.image.vendor="BioSimulators Team"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# copy assets
+COPY assets/docker/config/.biosimulations.json /.google/.bio-compose.json
+COPY assets/docker/config/.pys_usercfg.ini /Pysces/.pys_usercfg.ini
+COPY assets/docker/config/.pys_usercfg.ini /root/Pysces/.pys_usercfg.ini
+COPY tests/test_fixtures /test_fixtures
+
+WORKDIR /app
+
+# copy env configs
+COPY ./environment.yml /app/environment.yml
+COPY ./pyproject.toml /app/pyproject.toml
+COPY ./gateway /app/gateway
+COPY ./shared /app/shared
+COPY ./worker /app/worker
+COPY ./common /app/common
+
+RUN echo "Server" > /app/README.md \
+    && mkdir /app/config
+#
+RUN conda update -n base -c conda-forge conda \
+    && conda env create -f /app/environment.yml -y \
+    && conda run -n compose-server pip install -e . \
+    && conda run -n compose-server python /app/gateway/openapi_spec.py
+
+# CMD ["conda", "run", "-n", "compose-server", "uvicorn", "gateway.main:app", "--host", "0.0.0.0", "--port", "3001", "--reload"]
+
+# EXPOSE 3001
+
+CMD ["conda", "run", "-n", "compose-server", "uvicorn", "gateway.main:app", "--host", "0.0.0.0", "--port", "3001", "--reload"]
+

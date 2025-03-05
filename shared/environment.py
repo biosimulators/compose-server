@@ -19,3 +19,4 @@ DEFAULT_DB_TYPE = os.getenv("DB_TYPE", "mongodb")
 DEFAULT_DB_NAME = os.getenv("DB_NAME", "compose_db")
 DEFAULT_BUCKET_NAME = os.getenv("BUCKET_NAME", "compose_bucket")
 DEFAULT_JOB_COLLECTION_NAME = os.getenv("JOB_COLLECTION_NAME", "compose_jobs")
+LOCAL_GRPC_MAPPING = "localhost:50051"

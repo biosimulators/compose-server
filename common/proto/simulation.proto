@@ -42,4 +42,7 @@ message SimulationUpdate {
     string job_id = 1;
     string last_updated = 2;
     Results results = 3;
+    // int32 step = 4;
+    // double progress = 5;
+    // optional string message = 6;
 }

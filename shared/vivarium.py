@@ -1,47 +1,14 @@
+import json
 from dataclasses import dataclass
 
 import process_bigraph as pbg
 from vivarium import Vivarium
+from bsp import app_registrar
 
+from shared.data_model import Results, Result, ValidatedComposition
+from shared.utils import deserialize_composition
 
-class DynamicData:
-    def __init__(self, **params):
-        """Dynamically define and set state attributes via **data."""
-        self._set_attributes(**params)
-
-    def _set_attributes(self, **params):
-        for k, v in params.items():
-            setattr(self, k, v)
-
-    def serialize(self) -> dict:
-        return self.__dict__
-
-    def __repr__(self) -> str:
-        return str(self.serialize())
-
-
-class StatefulDict(dict):
-    def __new__(cls, *args, **kwargs):
-        instance = super().__new__(cls)
-        return instance
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-
-class Result(dict):
-    def __new__(cls, global_time: float, *args, **kwargs):
-        instance = super().__new__(cls)
-        instance.global_time = global_time
-        return instance
-
-    def __init__(self, global_time: float, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-
-@dataclass
-class Results:
-    data: list[Result]
+CORE: pbg.ProcessTypes = app_registrar.core
 
 
 # TODO: possibly have an endpoint /create-vivarium in which a vivarium instance is pickled and saved to db
@@ -52,26 +19,14 @@ class Results:
 
 def create_vivarium(
         document: dict = None,
-        core: pbg.ProcessTypes = None
+        core: pbg.ProcessTypes = CORE
 ) -> Vivarium:
-    import json
-    from vivarium import Vivarium
-    from bsp import app_registrar
-
-    if not core:
-        core = app_registrar.core
-
-    return Vivarium(processes=core.process_registry.registry, document=document)
+    vivarium = Vivarium(processes=core.process_registry.registry, document=document)
+    vivarium.add_emitter()
+    return vivarium
 
 
-def parse_spec(composite_spec: dict, duration: int, core: pbg.ProcessTypes = None) -> Vivarium:
-    import json
-    from vivarium import Vivarium
-    from bsp import app_registrar
-
-    if not core:
-        core = app_registrar.core
-
+def parse_spec(composite_spec: dict, duration: int, core: pbg.ProcessTypes = CORE) -> Vivarium:
     vivarium = Vivarium(core=core)  # load in bsp.app_registrar.core
     for process_name, spec in composite_spec.items():
         vivarium.add_process(
@@ -94,4 +49,30 @@ def run_composition(vivarium: Vivarium, duration: int) -> Results:
             for result in vivarium.get_results()
         ]
     )
+
+
+def check_composition(document_data: dict) -> ValidatedComposition:
+    validation = {'valid': True}
+
+    # validation 1 (fit data model)
+    try:
+        validation['composition'] = deserialize_composition(document_data)
+    except:
+        validation['valid'] = False
+        validation['composition'] = None
+
+    # validation 2
+    invalid_nodes = []
+    for node_name, node_spec in document_data.items():
+        if "emitter" not in node_name:
+            try:
+                assert node_spec["inputs"], f"{node_name} is missing inputs"
+                assert node_spec["outputs"], f"{node_name} is missing outputs"
+            except AssertionError as e:
+                invalid_node = {node_name: str(e)}
+                invalid_nodes.append(invalid_node)
+                validation['valid'] = False
+
+    validation['invalid_nodes'] = invalid_nodes if len(invalid_nodes) else None
+    return ValidatedComposition(**validation)
 

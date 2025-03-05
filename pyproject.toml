@@ -59,7 +59,7 @@ build-backend = "hatchling.build"
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["gateway", "shared", "worker", "common"]
+packages = ["gateway", "shared", "worker", "common", "client", "server"]
 
 # [tool.hatch.envs.default]
 # dependencies = [

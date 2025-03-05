@@ -2,6 +2,7 @@ import os
 import pickle
 import traceback
 import uuid
+from datetime import datetime
 from enum import Enum, EnumMeta
 from asyncio import sleep
 from typing import *
@@ -11,6 +12,10 @@ import h5py
 import numpy as np
 
 from shared.data_model import CompositionNode, CompositionSpec
+
+
+def timestamp() -> str:
+    return str(datetime.now())
 
 
 def deserialize_composition(composite_spec: dict) -> CompositionSpec:

@@ -35,17 +35,47 @@ class BaseClass:
         return list[self.__dataclass_fields__.keys()]
 
 
+# --- vivarium interface ---
+
 class DynamicData:
     def __init__(self, **params):
         """Dynamically define and set state attributes via **data."""
         self._set_attributes(**params)
 
-    def _set_attributes(self, **params) -> None:
+    def _set_attributes(self, **params):
         for k, v in params.items():
             setattr(self, k, v)
 
-    def serialize(self) -> dict[str, Any]:
+    def serialize(self) -> dict:
         return self.__dict__
+
+    def __repr__(self) -> str:
+        return str(self.serialize())
+
+
+class StatefulDict(dict):
+    def __new__(cls, *args, **kwargs):
+        instance = super().__new__(cls)
+        return instance
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class Result(dict):
+    def __new__(cls, global_time: float, *args, **kwargs):
+        instance = super().__new__(cls)
+        instance.global_time = global_time
+        return instance
+
+    def __init__(self, global_time: float, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+@dataclass
+class Results:
+    data: list[Result]
+
 
 # -- requests --
 

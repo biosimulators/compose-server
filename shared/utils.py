@@ -5,13 +5,17 @@ import uuid
 from datetime import datetime
 from enum import Enum, EnumMeta
 from asyncio import sleep
+from tempfile import mkdtemp
 from typing import *
 from pprint import pformat
 
 import h5py
 import numpy as np
+from vivarium import Vivarium
 
 from shared.data_model import CompositionNode, CompositionSpec
+from shared.environment import DEFAULT_BUCKET_NAME
+from shared.io import download_file, upload_blob
 
 
 def timestamp() -> str:
@@ -32,11 +36,6 @@ def deserialize_composition(composite_spec: dict) -> CompositionSpec:
 
 def serialize_composition(composite_spec: CompositionSpec):
     return composite_spec.export()
-
-
-def unpickle_composition(pickle_file: str) -> CompositionSpec:
-    with open(pickle_file, "rb") as f:
-        return CompositionSpec(**pickle.load(f))
 
 
 def pickle_composition(composite_spec: CompositionSpec, pickle_file: str) -> None:

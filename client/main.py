@@ -20,7 +20,7 @@ from functools import partial
 import dotenv
 import grpc
 import uvicorn
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query, APIRouter, Body, WebSocket, Response
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, APIRouter, Body, WebSocket, Response, Depends
 from process_bigraph import Process, pp, Composite
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
@@ -127,13 +127,17 @@ app.mongo_client = db_conn_gateway.client
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
 
+def optional_file(document: UploadFile = File(default=None)):
+    return document
+
+
 @app.post(
     "/new-vivarium",
     name="Create new vivarium",
     operation_id="new-vivarium",
     tags=["Composition"],
 )
-async def create_new_vivarium(document: UploadFile = File(default=None)):
+async def create_new_vivarium(document: UploadFile = Depends(optional_file)):
     # compile all possible registrations TODO: generalize/streamline this
     registered_processes: dict = CORE.process_registry.registry
     registered_processes.update(TOY_PROCESSES)
@@ -166,10 +170,10 @@ async def create_new_vivarium(document: UploadFile = File(default=None)):
     operation_id="run-vivarium",
     tags=["Composition"],
 )
-async def run_vivarium(duration: int, vivarium_id: str = Query(default=None), document: UploadFile = File(default=None)):
+async def run_vivarium(duration: int, vivarium_id: str = Query(default=None)):  # , document: UploadFile = Depends(optional_file)):
     # create new vivarium if no id passed
     if vivarium_id is None:
-        new_viv_response: dict[str, str] = await create_new_vivarium(document)
+        new_viv_response: dict[str, str] = await create_new_vivarium()  # (document)
         vivarium_id: str = new_viv_response['vivarium_id']
 
     # get the pickle as bytes data from the vivarium_id

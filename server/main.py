@@ -41,8 +41,8 @@ class ServerHandler:
             )
 
             # write the updated vivarium state to the pickle file
-            remote_pickle_path = get_remote_pickle_path(vivarium_id)
-            write_pickle(vivarium_id=vivarium_id, vivarium=vivarium)
+            # remote_pickle_path = get_remote_pickle_path(vivarium_id)
+            # write_pickle(vivarium_id=vivarium_id, vivarium=vivarium)
 
             # add buffer: TODO: do we need this?
             time.sleep(buffer)

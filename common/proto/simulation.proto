@@ -53,5 +53,5 @@ message SimulationRequest {
 message SimulationUpdate {
     string job_id = 1;
     string last_updated = 2;
-    Results results = 3;
+    google.protobuf.Any results = 3;
 }

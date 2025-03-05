@@ -1,11 +1,14 @@
 import json
 from dataclasses import dataclass
+from typing import Any
 
 import process_bigraph as pbg
+from google.protobuf.internal.well_known_types import Struct, Any as _Any
 from vivarium import Vivarium
 from vivarium.tests import TOY_PROCESSES
 from bsp import app_registrar
 
+from common.proto import simulation_pb2
 from shared.data_model import Results, Result, ValidatedComposition
 from shared.utils import deserialize_composition
 
@@ -53,7 +56,7 @@ def run_composition(vivarium: Vivarium, duration: int) -> Results:
     )
 
 
-def check_composition(document_data: dict) -> ValidatedComposition:
+def check_composition(document_data: dict) -> ValidatedComposition | Any:
     validation = {'valid': True}
 
     # validation 1 (fit data model)
@@ -76,5 +79,35 @@ def check_composition(document_data: dict) -> ValidatedComposition:
                 validation['valid'] = False
 
     validation['invalid_nodes'] = invalid_nodes if len(invalid_nodes) else None
-    return ValidatedComposition(**validation)
+    # return ValidatedComposition(**validation)
+    return validation
+
+
+def convert_object(key, data):
+    """Converts a Python dictionary into a gRPC Object message."""
+    any_value = _Any()
+    any_value.Pack(convert_struct(key, data))
+    return simulation_pb2.Object(value=any_value)
+
+
+def convert_struct(key, data):
+    """Converts a Python dictionary into a gRPC Struct message."""
+    d = eval(data) if isinstance(data, str) else data
+    struct = Struct()
+    struct.update({key: d})
+    return struct
+
+
+def convert_process(process_dict):
+    """Converts a Python dictionary to a gRPC Process message."""
+    address = process_dict["address"]
+    _type = 'step' if 'emitter' in address else 'process'
+    outputs = process_dict.get('outputs')
+    return simulation_pb2.Process(
+        type=process_dict.get('_type', _type),
+        address=address,
+        config={k: convert_struct(k, v) for k, v in process_dict.get("config", {}).items()},
+        inputs={k: convert_object(k, v) for k, v in process_dict.get("inputs", {}).items()},
+        outputs={k: convert_object(k, v) for k, v in outputs.items()} if outputs else {},
+    )
 

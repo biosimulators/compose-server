@@ -23,6 +23,9 @@ from process_bigraph import Process, pp, Composite
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from pydantic import BeforeValidator
+from google.protobuf.struct_pb2 import Struct
+from google.protobuf.any_pb2 import Any
+
 
 from client.submit_runs import submit_utc_run, submit_pymem3dg_run
 from common.proto import simulation_pb2_grpc, simulation_pb2
@@ -66,7 +69,7 @@ from shared.data_model import (
 )
 
 from client.health import check_client
-from shared.vivarium import CORE, check_composition
+from shared.vivarium import CORE, check_composition, convert_process
 
 logger = setup_logging(__file__)
 
@@ -155,15 +158,6 @@ clients: List[WebSocket] = []
 
 
 # -- Composition: submit composition jobs --
-"""
-message SimulationRequest {
-    string job_id = 1;
-    string last_updated = 2;
-    repeated string simulators = 3;
-    int32 duration = 4;
-    map<string, Process> spec = 5;
-}
-"""
 
 
 def submit_simulation(
@@ -175,16 +169,29 @@ def submit_simulation(
 ) -> list[dict]:
     """Sends a single request-response message to the gRPC server."""
     with grpc.insecure_channel(LOCAL_GRPC_MAPPING) as channel:
+        state = spec.get("state").copy()
+        print(f'Got spec: {state.keys()}')
+        del state['global_time']
+
         stub = simulation_pb2_grpc.SimulationServiceStub(channel)
         try:
+            # convert `spec` dictionary into a `map<string, Process>`
+            grpc_spec = {}
+            for key, value in state.items():
+                # TODO: handle this more comprehensively
+                if isinstance(value, dict) and "address" in value.keys():
+                    grpc_spec[key] = convert_process(value)
+
             request = simulation_pb2.SimulationRequest(
                 job_id=job_id,
                 last_updated=last_updated,
                 simulators=simulators,
                 duration=duration,
-                spec=spec
+                spec=grpc_spec
             )
+
             response_iterator = stub.StreamSimulation(request)
+
             results = []
             for update in response_iterator:
                 result = {
@@ -197,6 +204,7 @@ def submit_simulation(
             return results
         except grpc.RpcError as e:
             raise HTTPException(status_code=500, detail=f"gRPC error: {e}")
+
 
 
 @app.post(
@@ -322,33 +330,33 @@ async def get_bigraph_schema_types() -> list[BigraphSchemaType]:
 
 
 # TODO: make this more specific in checking
-@app.post(
-    "/validate-composition",
-    response_model=ValidatedComposition,
-    tags=["Composition"],
-    operation_id="validate-composition",
-    summary="Validate Simulation Experiment Design specification file.",
-)
-async def validate_composition(
-        spec_file: UploadFile = File(..., description="Composition JSON File"),
-) -> ValidatedComposition:
-    # validate filetype
-    if not spec_file.filename.endswith('.json') and spec_file.content_type != 'application/json':
-        raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")
-
-    # multifold IO verification:
-    try:
-        contents = await spec_file.read()
-        document_data: Dict = json.loads(contents)
-        return check_composition(document_data)
-    except json.JSONDecodeError as e:
-        message = handle_exception("validate-composition-json-decode-error") + f'-{str(e)}'
-        logger.error(message)
-        raise HTTPException(status_code=400, detail=message)
-    except Exception as e:
-        message = handle_exception("validate-composition") + f'-{str(e)}'
-        logger.error(message)
-        raise HTTPException(status_code=400, detail=message)
+# @app.post(
+#     "/validate-composition",
+#     # response_model=ValidatedComposition,
+#     tags=["Composition"],
+#     operation_id="validate-composition",
+#     summary="Validate Simulation Experiment Design specification file.",
+# )
+# async def validate_composition(
+#         spec_file: UploadFile = File(..., description="Composition JSON File"),
+# ) -> ValidatedComposition:
+#     # validate filetype
+#     if not spec_file.filename.endswith('.json') and spec_file.content_type != 'application/json':
+#         raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")
+#
+#     # multifold IO verification:
+#     try:
+#         contents = await spec_file.read()
+#         document_data: Dict = json.loads(contents)
+#         return check_composition(document_data)
+#     except json.JSONDecodeError as e:
+#         message = handle_exception("validate-composition-json-decode-error") + f'-{str(e)}'
+#         logger.error(message)
+#         raise HTTPException(status_code=400, detail=message)
+#     except Exception as e:
+#         message = handle_exception("validate-composition") + f'-{str(e)}'
+#         logger.error(message)
+#         raise HTTPException(status_code=400, detail=message)
 
 
 @app.post(

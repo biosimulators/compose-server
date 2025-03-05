@@ -5,7 +5,7 @@ import grpc
 
 from common.proto import simulation_pb2, simulation_pb2_grpc
 from shared.utils import timestamp
-from shared.vivarium import create_vivarium, run_composition
+from shared.vivarium import create_vivarium, run_composition, convert_process
 
 
 def process_composition(job_id, simulators: list[str], duration: int, spec: dict):
@@ -25,19 +25,15 @@ class SimulationService(simulation_pb2_grpc.SimulationServiceServicer):
         """Handles a gRPC streaming request from a client."""
         print(f"Received SimulationRequest for job_id: {request.job_id}")
 
-        # Convert spec from gRPC message to Python dictionary
-        # job_id = job_id,
-        # last_updated = last_updated,
-        # simulators = simulators,
-        # duration = duration,
-        # spec = spec
+        # convert spec from gRPC message to Python dictionary
+        spec = {k: convert_process(v) for k, v in request.spec.items()}
 
         # Run simulation and stream responses
         for update in process_composition(
                 job_id=request.job_id,
                 simulators=request.simulators,
                 duration=request.duration,
-                spec=request.spec
+                spec=spec
         ):
             yield update
 

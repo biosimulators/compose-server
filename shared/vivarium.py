@@ -83,6 +83,8 @@ def check_composition(document_data: dict) -> ValidatedComposition | Any:
     return validation
 
 
+# TODO: handle these differently
+
 def convert_object(key, data):
     """Converts a Python dictionary into a gRPC Object message."""
     any_value = _Any()

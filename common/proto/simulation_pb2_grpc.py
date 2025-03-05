@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import common.proto.simulation_pb2 as simulation__pb2
+import simulation_pb2 as simulation__pb2
 
 GRPC_GENERATED_VERSION = '1.70.0'
 GRPC_VERSION = grpc.__version__
@@ -35,7 +35,7 @@ class SimulationServiceStub(object):
             channel: A grpc.Channel.
         """
         self.StreamSimulation = channel.unary_stream(
-                '/simulation.SimulationService/StreamSimulation',
+                '/compose.SimulationService/StreamSimulation',
                 request_serializer=simulation__pb2.SimulationRequest.SerializeToString,
                 response_deserializer=simulation__pb2.SimulationUpdate.FromString,
                 _registered_method=True)
@@ -60,9 +60,9 @@ def add_SimulationServiceServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'simulation.SimulationService', rpc_method_handlers)
+            'compose.SimulationService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('simulation.SimulationService', rpc_method_handlers)
+    server.add_registered_method_handlers('compose.SimulationService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -83,8 +83,80 @@ class SimulationService(object):
         return grpc.experimental.unary_stream(
             request,
             target,
-            '/simulation.SimulationService/StreamSimulation',
+            '/compose.SimulationService/StreamSimulation',
             simulation__pb2.SimulationRequest.SerializeToString,
+            simulation__pb2.SimulationUpdate.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
+class VivariumServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.StreamVivarium = channel.unary_stream(
+                '/compose.VivariumService/StreamVivarium',
+                request_serializer=simulation__pb2.VivariumRequest.SerializeToString,
+                response_deserializer=simulation__pb2.SimulationUpdate.FromString,
+                _registered_method=True)
+
+
+class VivariumServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def StreamVivarium(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_VivariumServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'StreamVivarium': grpc.unary_stream_rpc_method_handler(
+                    servicer.StreamVivarium,
+                    request_deserializer=simulation__pb2.VivariumRequest.FromString,
+                    response_serializer=simulation__pb2.SimulationUpdate.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'compose.VivariumService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('compose.VivariumService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class VivariumService(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def StreamVivarium(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/compose.VivariumService/StreamVivarium',
+            simulation__pb2.VivariumRequest.SerializeToString,
             simulation__pb2.SimulationUpdate.FromString,
             options,
             channel_credentials,

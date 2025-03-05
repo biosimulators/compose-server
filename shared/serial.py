@@ -1,15 +1,26 @@
 import os
 import pickle
 import uuid
+import hashlib
+import zlib
 from tempfile import mkdtemp
 
 from vivarium import Vivarium
+import hmac
+
 
 from shared.environment import DEFAULT_BUCKET_NAME
 from shared.io import download_file, upload_blob
 
 
-def read_pickle(vivarium_id: str, temp_dir: str) -> Vivarium:
+def get_pickle(vivarium_id: str, temp_dir: str) -> bytes:
+    remote_pickle_path = get_remote_pickle_path(vivarium_id)
+    local_pickle_file = download_file(remote_pickle_path, temp_dir, DEFAULT_BUCKET_NAME)
+    with open(local_pickle_file, "rb") as f:
+        return f.read()
+
+
+def hydrate_pickle(vivarium_id: str, temp_dir: str) -> Vivarium:
     remote_pickle_path = get_remote_pickle_path(vivarium_id)
     local_pickle_file = download_file(remote_pickle_path, temp_dir, DEFAULT_BUCKET_NAME)
     with open(local_pickle_file, "rb") as f:
@@ -41,3 +52,9 @@ def get_remote_pickle_path(vivarium_id: str) -> str:
 
 def create_vivarium_id(vivarium: Vivarium) -> str:
     return 'vivarium-' + str(uuid.uuid4()) + '-' + str(vivarium.__hash__())
+
+
+def sign_pickle(data: bytes, secret_key: bytes) -> bytes:
+    """Signs the data with HMAC to prevent tampering."""
+    signature = hmac.new(secret_key, data, hashlib.sha256).digest()
+    return signature + data

@@ -9,6 +9,7 @@ import os
 import shutil
 import uuid
 import sys
+import zlib
 from tempfile import mkdtemp
 from typing import *
 import asyncio
@@ -19,7 +20,7 @@ from functools import partial
 import dotenv
 import grpc
 import uvicorn
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query, APIRouter, Body, WebSocket
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, APIRouter, Body, WebSocket, Response
 from process_bigraph import Process, pp, Composite
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
@@ -36,7 +37,7 @@ from yaml import compose
 
 from shared.io import write_uploaded_file, download_file_from_bucket, write_local_file
 from shared.log_config import setup_logging
-from shared.serial import write_pickle, create_vivarium_id, read_pickle
+from shared.serial import write_pickle, create_vivarium_id, hydrate_pickle, get_pickle, sign_pickle
 from shared.utils import get_project_version, new_job_id, handle_exception, serialize_numpy, clean_temp_files
 from shared.environment import (
     ENV_PATH,
@@ -82,7 +83,7 @@ dotenv.load_dotenv(ENV_PATH)
 STANDALONE_GATEWAY = bool(os.getenv("STANDALONE_GATEWAY"))
 MONGO_URI = os.getenv("MONGO_URI") if not STANDALONE_GATEWAY else os.getenv("STANDALONE_MONGO_URI")
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-
+TEST_KEY = b"supersecurekey"
 
 # -- app constraints and components -- #
 
@@ -206,6 +207,33 @@ class ClientHandler:
         if not document.filename.endswith('.json') and document.content_type != 'application/json':
             raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")
 
+    @classmethod
+    def send_pickle(cls, last_updated: str, duration: int, signed_pickle: bytes, job_id: str, vivarium_id: str) -> list[dict[str, str | dict]]:
+        with grpc.insecure_channel(LOCAL_GRPC_MAPPING) as channel:
+            stub = simulation_pb2_grpc.VivariumServiceStub(channel)
+            request = simulation_pb2.VivariumRequest(
+                last_updated=last_updated,
+                duration=duration,
+                payload=signed_pickle,
+                job_id=job_id,
+                vivarium_id=vivarium_id
+            )
+
+            response_iterator = stub.StreamVivarium(request)
+
+            # TODO: the following block should be generalized (used by many)
+            results = []
+            for update in response_iterator:
+                result = {
+                    "job_id": update.job_id,
+                    "last_updated": update.last_updated,
+                    "results": update.results
+                }
+                results.append(result)
+                print(f'Got result: {result}')
+
+            return results
+
 
 @app.post(
     "/new-vivarium",
@@ -249,12 +277,26 @@ async def create_new_vivarium(document: UploadFile = File(default=None)):
 async def get_document(vivarium_id: str):
     # hydrate pickle into vivarium
     temp_dir = mkdtemp()
-    vivarium: Vivarium = read_pickle(vivarium_id, temp_dir)
+    vivarium: Vivarium = hydrate_pickle(vivarium_id, temp_dir)
 
     # clean temp dir
     shutil.rmtree(temp_dir)
 
     return vivarium.make_document()
+
+
+@app.get(
+    '/_get-pickle',
+    operation_id="_get-pickle",
+    tags=["Composition"],
+    name="_get-pickle",
+    response_class=Response
+)
+async def _get_pickle(vivarium_id: str):
+    temp_dir = mkdtemp()
+    p: bytes = get_pickle(vivarium_id, temp_dir)
+    compressed_pickle = zlib.compress(p)
+    signed_pickle = sign_pickle(compressed_pickle, TEST_KEY)
 
 
 if __name__ == "__main__":

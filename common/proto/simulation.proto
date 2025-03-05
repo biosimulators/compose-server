@@ -3,10 +3,22 @@ syntax = "proto3";
 import "google/protobuf/struct.proto";
 import "google/protobuf/any.proto";
 
-package simulation;
+package compose;
 
 service SimulationService {
     rpc StreamSimulation (SimulationRequest) returns (stream SimulationUpdate);
+}
+
+service VivariumService {
+    rpc StreamVivarium (VivariumRequest) returns (stream SimulationUpdate);
+}
+
+message VivariumRequest {
+    string last_updated = 1;
+    int32 duration = 2;
+    bytes payload = 3;
+    string job_id = 4;
+    string vivarium_id = 5;
 }
 
 message Object {

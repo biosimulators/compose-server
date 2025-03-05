@@ -30,6 +30,7 @@ from google.protobuf.any_pb2 import Any
 from vivarium import Vivarium
 from vivarium.tests import TOY_PROCESSES, DEMO_PROCESSES  # TODO: replace these
 
+from client.handler import ClientHandler
 from client.submit_runs import submit_utc_run, submit_pymem3dg_run
 from common.proto import simulation_pb2_grpc, simulation_pb2
 from shared.connect import MongoConnector
@@ -38,7 +39,7 @@ from yaml import compose
 from shared.io import write_uploaded_file, download_file_from_bucket, write_local_file
 from shared.log_config import setup_logging
 from shared.serial import write_pickle, create_vivarium_id, hydrate_pickle, get_pickle, sign_pickle
-from shared.utils import get_project_version, new_job_id, handle_exception, serialize_numpy, clean_temp_files
+from shared.utils import get_project_version, new_job_id, handle_exception, serialize_numpy, clean_temp_files, timestamp
 from shared.environment import (
     ENV_PATH,
     DEFAULT_DB_NAME,
@@ -126,115 +127,6 @@ app.mongo_client = db_conn_gateway.client
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
 
-class ClientHandler:
-    @classmethod
-    async def parse_uploaded_files_in_spec(cls, model_files: list[UploadFile], config_data: dict) -> list[str]:
-        temp_files = []
-
-        # parse config for model specification TODO: generalize this
-        for uploaded_file in model_files:
-            # case: has a SedModel config spec (ode, fba, smoldyn)
-            if "model" in config_data.keys():
-                specified_model = config_data["model"]["model_source"]
-                if uploaded_file.filename == specified_model.split("/")[-1]:
-                    temp_dir = mkdtemp()
-                    temp_file = os.path.join(temp_dir, uploaded_file.filename)
-                    with open(temp_file, "wb") as f:
-                        uploaded = await uploaded_file.read()
-                        f.write(uploaded)
-                    config_data["model"]["model_source"] = temp_file
-                    temp_files.append(temp_file)
-            # case: has a mesh file config (membrane)
-            elif "mesh_file" in config_data.keys():
-                temp_dir = mkdtemp()
-                temp_file = os.path.join(temp_dir, uploaded_file.filename)
-                with open(temp_file, "wb") as f:
-                    uploaded = await uploaded_file.read()
-                    f.write(uploaded)
-                config_data["mesh_file"] = temp_file
-                temp_files.append(temp_file)
-        return temp_files
-
-    @classmethod
-    def submit_simulation(
-            cls,
-            job_id: str,
-            last_updated: str,
-            simulators: list[str],
-            duration: int,
-            spec: dict
-    ) -> list[dict]:
-        """Sends a single request-response message to the gRPC server."""
-        with grpc.insecure_channel(LOCAL_GRPC_MAPPING) as channel:
-            state = spec.get("state").copy()
-            print(f'Got spec: {state.keys()}')
-            del state['global_time']
-
-            stub = simulation_pb2_grpc.SimulationServiceStub(channel)
-            try:
-                # convert `spec` dictionary into a `map<string, Process>`
-                grpc_spec = {}
-                for key, value in state.items():
-                    # TODO: handle this more comprehensively
-                    if isinstance(value, dict) and "address" in value.keys():
-                        grpc_spec[key] = convert_process(value)
-
-                request = simulation_pb2.SimulationRequest(
-                    job_id=job_id,
-                    last_updated=last_updated,
-                    simulators=simulators,
-                    duration=duration,
-                    spec=grpc_spec
-                )
-
-                response_iterator = stub.StreamSimulation(request)
-
-                results = []
-                for update in response_iterator:
-                    result = {
-                        "job_id": update.job_id,
-                        "last_updated": update.last_updated,
-                        "results": update.results
-                    }
-                    results.append(result)
-                    print(f'Got result: {result}')
-                return results
-            except grpc.RpcError as e:
-                raise HTTPException(status_code=500, detail=f"gRPC error: {e}")
-
-    @classmethod
-    def check_document(cls, document: UploadFile) -> None:
-        if not document.filename.endswith('.json') and document.content_type != 'application/json':
-            raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")
-
-    @classmethod
-    def send_pickle(cls, last_updated: str, duration: int, signed_pickle: bytes, job_id: str, vivarium_id: str) -> list[dict[str, str | dict]]:
-        with grpc.insecure_channel(LOCAL_GRPC_MAPPING) as channel:
-            stub = simulation_pb2_grpc.VivariumServiceStub(channel)
-            request = simulation_pb2.VivariumRequest(
-                last_updated=last_updated,
-                duration=duration,
-                payload=signed_pickle,
-                job_id=job_id,
-                vivarium_id=vivarium_id
-            )
-
-            response_iterator = stub.StreamVivarium(request)
-
-            # TODO: the following block should be generalized (used by many)
-            results = []
-            for update in response_iterator:
-                result = {
-                    "job_id": update.job_id,
-                    "last_updated": update.last_updated,
-                    "results": update.results
-                }
-                results.append(result)
-                print(f'Got result: {result}')
-
-            return results
-
-
 @app.post(
     "/new-vivarium",
     name="Create new vivarium",
@@ -252,7 +144,7 @@ async def create_new_vivarium(document: UploadFile = File(default=None)):
 
     # handle document upload
     if document is not None:
-        ClientHandler.check_document(document)
+        ClientHandler.check_document_extension(document)
 
         file_content: bytes = await document.read()
         composite_spec: dict[str, str | dict] = json.loads(file_content)
@@ -266,6 +158,36 @@ async def create_new_vivarium(document: UploadFile = File(default=None)):
     remote_vivarium_pickle_path = write_pickle(viv, new_id)
 
     return {'vivarium_id': new_id, 'remote_path': remote_vivarium_pickle_path}
+
+
+@app.post(
+    '/run-vivarium',
+    name="Run vivarium",
+    operation_id="run-vivarium",
+    tags=["Composition"],
+)
+async def run_vivarium(duration: int, vivarium_id: str = Query(default=None), document: UploadFile = File(default=None)):
+    # create new vivarium if no id passed
+    if vivarium_id is None:
+        new_viv_response: dict[str, str] = await create_new_vivarium(document)
+        vivarium_id: str = new_viv_response['vivarium_id']
+
+    # get the pickle as bytes data from the vivarium_id
+    pickle_response: Response = await _get_pickle(vivarium_id)
+
+    viv_payload: bytes = pickle_response.body
+    last_updated: str = timestamp()
+    job_id: str = new_job_id('run-vivarium')
+
+    return ClientHandler.submit_run(
+        last_updated=last_updated,
+        duration=duration,
+        signed_pickle=viv_payload,
+        job_id=job_id,
+        vivarium_id=vivarium_id
+    )
+
+
 
 
 @app.get(
@@ -292,11 +214,12 @@ async def get_document(vivarium_id: str):
     name="_get-pickle",
     response_class=Response
 )
-async def _get_pickle(vivarium_id: str):
+async def _get_pickle(vivarium_id: str) -> Response:
     temp_dir = mkdtemp()
     p: bytes = get_pickle(vivarium_id, temp_dir)
     compressed_pickle = zlib.compress(p)
     signed_pickle = sign_pickle(compressed_pickle, TEST_KEY)
+    return Response(content=signed_pickle, media_type="application/octet-stream")
 
 
 if __name__ == "__main__":

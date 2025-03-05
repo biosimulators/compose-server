@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import time
 from concurrent import futures
 
@@ -8,17 +10,16 @@ from shared.utils import timestamp
 from shared.vivarium import create_vivarium, run_composition, convert_process
 
 
-def process_composition(job_id, simulators: list[str], duration: int, spec: dict):
-    vivarium = create_vivarium(document=spec)
-    for interval in range(duration):
-        results = run_composition(vivarium=vivarium, duration=interval)
-        yield simulation_pb2.SimulationUpdate(
-            job_id=job_id,
-            last_updated=timestamp(),
-            results=results
-        )
-        # time.sleep(1)  # Simulate computation delay
+def verify_pickle(signed_data: bytes, secret_key: bytes) -> bytes:
+    """Verify HMAC and return raw compressed pickle data."""
+    signature = signed_data[:32]
+    data: bytes = signed_data[32:]
 
+    expected_sig = hmac.new(secret_key, data, hashlib.sha256).digest()
+    if not hmac.compare_digest(signature, expected_sig):
+        raise ValueError("Pickle signature verification failed")
+
+    return data
 
 class SimulationService(simulation_pb2_grpc.SimulationServiceServicer):
     def StreamSimulation(self, request, context):

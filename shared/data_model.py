@@ -73,6 +73,13 @@ class Result(dict):
 
 
 @dataclass
+class RunResponse(BaseClass):
+    job_id: str
+    last_updated: str
+    results: list[dict[str, Any] | Result]
+
+
+@dataclass
 class Results:
     data: list[Result]
 

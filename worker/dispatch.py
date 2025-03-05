@@ -31,7 +31,7 @@ from bsp import app_registrar
 from bsp.processes.simple_membrane_process import SimpleMembraneProcess
 
 from shared.io import download_file_from_bucket
-from shared.database import MongoConnector
+from shared.connect import MongoConnector
 from shared.environment import DEFAULT_BUCKET_NAME
 from shared.log_config import setup_logging
 from worker.sim_runs.runs import RunsWorker

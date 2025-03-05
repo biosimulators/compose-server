@@ -24,8 +24,37 @@ class BaseClass:
     def serialize(self):
         return asdict(self)
 
+    def set(self, attribute_id: str, value: float | int | str | bool | list | dict):
+        return setattr(self, attribute_id, value)
+
+    def get(self, attribute_id: str):
+        return getattr(self, attribute_id)
+
+    @property
+    def attributes(self) -> list[str]:
+        return list[self.__dataclass_fields__.keys()]
+
+
+class DynamicData:
+    def __init__(self, **params):
+        """Dynamically define and set state attributes via **data."""
+        self._set_attributes(**params)
+
+    def _set_attributes(self, **params) -> None:
+        for k, v in params.items():
+            setattr(self, k, v)
+
+    def serialize(self) -> dict[str, Any]:
+        return self.__dict__
 
 # -- requests --
+
+@dataclass
+class FileUpload:
+    location: str
+    job_id: str
+    status: str
+
 
 @dataclass
 class ProcessMetadata(BaseClass):
@@ -55,7 +84,7 @@ class CompositionRun(Run):
     simulators: List[str]
     duration: int
     spec: Dict[str, Any]
-    results: Dict[str, Any] = field(default=None)
+    results: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -215,19 +244,38 @@ class PortStore(BaseClass):
 
 
 @dataclass
+class Port(BaseClass):
+    name: str
+    value: Any
+
+
+@dataclass
+class InputPort(Port):
+    pass
+
+
+@dataclass
+class OutputPort(Port):
+    pass
+
+
+@dataclass
 class CompositionNode(BaseClass):
     name: str
     _type: str
     address: str
-    config: Dict[str, Any]
-    inputs: Dict[str, List[str]]
-    outputs: Optional[Dict[str, List[str]]] = None
+    config: DynamicData
+    inputs: Optional[list[InputPort]] = field(default_factory=list)
+    outputs: Optional[list[OutputPort]] = field(default_factory=list)
 
-    def serialize(self):
-        rep = super().serialize()
-        rep.pop("name")
-        if not self.outputs:
-            rep.pop("outputs")
+    def _format_port(self, ports: list[InputPort | OutputPort]) -> dict[str, Any]:
+        return {port.name: port.value for port in ports}
+
+    def export(self) -> dict[str, Any]:
+        rep = self.serialize()
+        del rep['name']
+        rep['inputs'] = self._format_port(self.inputs)
+        rep['outputs'] = self._format_port(self.outputs)
         return rep
 
 
@@ -238,14 +286,11 @@ class CompositionSpec(BaseClass):
         spec = CompositionSpec(nodes=nodes, emitter_mode='ports')
         composite = Composition({'state': spec
     """
-    nodes: List[CompositionNode]
-    job_id: str
-    emitter_mode: str = "all"
+    nodes: list[CompositionNode]
 
-    @property
-    def spec(self):
+    def export(self):
         return {
-            node_spec.name: node_spec.serialize()
+            node_spec.name: node_spec.export()
             for node_spec in self.nodes
         }
 
@@ -268,6 +313,7 @@ class SmoldynOutput(FileResponse):
 class ValidatedComposition(BaseClass):
     valid: bool
     invalid_nodes: Optional[list[dict[str, str]]] = field(default=None)
+    composition: Optional[CompositionSpec] = field(default=None)
 
 
 @dataclass
@@ -334,24 +380,10 @@ class Packet(BaseClass):
 
 # --- websocket server ---
 
-@dataclass
-class StateData(BaseClass):
-    def __init__(self, **data):
-        """Dynamically define and set state attributes via **data."""
-        self._set_attributes(**data)
-
-    def _set_attributes(self, **data):
-        for k, v in data.items():
-            self.set(k, v)
-
-    def set(self, attribute_id: str, value: float | int | str | bool | list | dict):
-        return setattr(self, attribute_id, value)
-
-    def get(self, attribute_id: str):
-        return getattr(self, attribute_id)
+class StateData(DynamicData):
+    pass
 
 
-@dataclass
 class AccumulationState(StateData):
     def set_data(self, **params):
         for k, v in params.items():

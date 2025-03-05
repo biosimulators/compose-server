@@ -11,6 +11,7 @@ import sys
 from tempfile import mkdtemp
 from typing import *
 import asyncio
+from functools import partial
 # import websockets
 
 
@@ -22,7 +23,9 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from pydantic import BeforeValidator
 
-from shared.database import MongoConnector
+from shared.connect import MongoConnector
+from yaml import compose
+
 from shared.io import write_uploaded_file, download_file_from_bucket, write_local_file
 from shared.log_config import setup_logging
 from shared.utils import get_project_version, new_job_id, handle_exception, serialize_numpy, clean_temp_files
@@ -54,7 +57,9 @@ from shared.data_model import (
     HealthCheckResponse,
     ProcessMetadata,
     Mem3dgRun,
-    BigraphSchemaType
+    BigraphSchemaType,
+    StateData,
+    FileUpload
 )
 from gateway.handlers.submit import submit_utc_run, check_composition, submit_pymem3dg_run
 from gateway.handlers.health import check_client
@@ -110,42 +115,40 @@ app.mongo_client = db_conn_gateway.client
 
 PyObjectId = Annotated[str, BeforeValidator(str)]
 clients: List[WebSocket] = []
-BASE_WS_URL = "ws://{function_name}:8000/ws"
 
+# SERVER_WS_URL = "ws://localhost:8001/ws"
+# BASE_WS_URL = "ws://{function_name}:8000/ws"
 
-manager = ConnectionManager()
+# manager = SocketConnectionManager()
 
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    """Handles incoming WebSocket connections from the server."""
-    await manager.connect(websocket)
-    try:
-        while True:
-            data = await websocket.receive_text()
-            print(f"Received from server: {data}")
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-
-
-@app.post("/send-data/")
-async def send_data(dx: float, dy: float, dz: float):
-    """Receives HTTP data and forwards it to the WebSocket server."""
-    server_url = "ws://localhost:8001/ws"
-
-    # request = Packet(dx=dx, dy=dy, dz=dz)
-    request = {'dx': dx, 'dy': dy, 'dz': dz}
-    try:
-        async with websockets.connect(server_url) as websocket:
-            packet: str = json.dumps(
-                request
-            )
-            await websocket.send(packet)
-
-            response: str | bytes = await websocket.recv()
-            return json.loads(response)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"WebSocket error: {str(e)}")
+# @app.websocket("/ws")
+# async def websocket_endpoint(websocket: WebSocket):
+#     """Handles incoming WebSocket connections from the server."""
+#     await manager.connect(websocket)
+#     try:
+#         while True:
+#             data = await websocket.receive_text()
+#             print(f"Received from server: {data}")
+#     except WebSocketDisconnect:
+#         manager.disconnect(websocket)
+#
+#
+# @app.post("/send-deltas/")
+# async def send_deltas(request: StateData):
+#     """Receives HTTP data and forwards it to the WebSocket server.
+#         Used for twin representation.
+#     """
+#     try:
+#         async with websockets.connect(SERVER_WS_URL) as websocket:
+#             packet: str = json.dumps(
+#                 request.serialize()
+#             )
+#             await websocket.send(packet)
+#
+#             response: str | bytes = await websocket.recv()
+#             return json.loads(response)
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"WebSocket error: {str(e)}")
 
 
 # -- Composition: submit composition jobs --
@@ -306,6 +309,31 @@ async def validate_composition(
 
 
 @app.post(
+    "/upload-file",
+    tags=["Files"],
+    operation_id="upload-file",
+    summary="Upload a file (ie: model file) to the composition api bucket"
+)
+async def upload_file(
+        file: UploadFile = File(..., description="Uploaded File"),
+        job_id: Optional[str] = Query(default=new_job_id("upload-file"), description="Optional Job ID associated with this upload.")
+) -> FileUpload:
+    """TODO: make auth required for this endpoint."""
+    try:
+        file_ext = os.path.splitext(file.filename)[-1]
+        uploaded_file_location: str = await write_uploaded_file(
+            job_id=job_id,
+            uploaded_file=file,
+            bucket_name=DEFAULT_BUCKET_NAME,
+            extension=file_ext
+        )
+        return FileUpload(job_id=job_id, location=uploaded_file_location, status="SUCCESS")
+    except Exception as e:
+        message = handle_exception("upload-file")
+        raise HTTPException(status_code=400, detail=message)
+
+
+@app.post(
     "/submit-composition",
     response_model=CompositionRun,
     tags=["Composition"],
@@ -313,67 +341,28 @@ async def validate_composition(
     summary="Submit composition spec for simulation",
 )
 async def submit_composition(
-        spec_file: UploadFile = File(..., description="Composition JSON File"),
-        # simulators: List[str] = Query(..., description="Simulator package names to use for implementation"),
+        composition_file: UploadFile = File(..., description="Composition JSON File"),
         duration: int = Query(..., description="Duration of simulation"),
-        model_files: List[UploadFile] = File(..., description="List of uploaded model files"),
+        # simulators: list[str] = Query(..., description="Simulator package names to use for implementation"),
 ) -> CompositionRun:
-    # validate filetype
-    if not spec_file.filename.endswith('.json') and spec_file.content_type != 'application/json':
+    """We should assume that any file specifications have already been validated and remotely uploaded."""
+    if not composition_file.filename.endswith('.json') and composition_file.content_type != 'application/json':
         raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")
 
     job_id = new_job_id("composition")
     try:
-        # 1. verification by fitting a common datamodel (in this case composition spec)
-        contents = await spec_file.read()
-        data: Dict = json.loads(contents)
+        file_content: bytes = await composition_file.read()
+        composite_spec: dict[str, str | dict] = json.loads(file_content)
 
-        simulators: List[str] = []
-        for node_name, node_spec in data.items():
-            # parse list of simulators required from spec addresses
-
-            address = node_spec['address']  # MUST be like: local:copasi-process
-            # if "emitter" not in address:
-            #     simulator = address.split(":")[-1].split('-')[0]
-            #     simulators.append(simulator)
-
-            # upload model files as needed (model filepath MUST match that which is in the spec-->./model-file
-            for model_file in model_files:
-                spec_model_source = node_spec.get("config").get("model", {}).get("model_source")
-                if spec_model_source:
-                    if (spec_model_source.split('/')[-1] == model_file.filename):
-                        file_ext = os.path.splitext(spec_model_source)[-1]
-                        uploaded_model_source_location = await write_uploaded_file(
-                            job_id=job_id,
-                            uploaded_file=model_file,
-                            bucket_name=DEFAULT_BUCKET_NAME,
-                            extension=file_ext
-                        )
-                        data[node_name]["config"]["model"]["model_source"] = uploaded_model_source_location
-
-        # 1a. verification by fitting the individual process specs to an expected structure
-        nodes: List[CompositionNode] = []
-        for node_name, node_spec in data.items():
-            node = CompositionNode(name=node_name, **node_spec)
-            nodes.append(node)
-
-        # 1b. verification by fitting that tree of nodes into an expected structure (which is consumed by pbg.Composite())
-        composition = CompositionSpec(
-            nodes=nodes,
-            emitter_mode="all",
-            job_id=job_id
-        )
-
-        # 2. verification by fitting write confirmation into CompositionRun...to verify O phase of IO, garbage in garbage out
-        write_confirmation: Dict = await db_conn_gateway.write(
+        # verification by fitting write confirmation into CompositionRun...to verify O phase of IO, garbage in garbage out
+        write_confirmation: dict[str, str | list[str] | int | dict] = await db_conn_gateway.write(
             collection_name=DEFAULT_JOB_COLLECTION_NAME,
             status="PENDING",
-            spec=composition.spec,
-            job_id=composition.job_id,
+            spec=composite_spec,
+            job_id=job_id,
             last_updated=db_conn_gateway.timestamp(),
-            simulators=simulators,
-            duration=duration,
-            results={}
+            simulators=[],
+            duration=duration
         )
 
         return CompositionRun(**write_confirmation)

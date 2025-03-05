@@ -7,9 +7,10 @@ from fastapi import UploadFile, HTTPException
 from process_bigraph import Composite
 
 from shared.data_model import UtcRun, AmiciRun, CobraRun, CopasiRun, TelluriumRun, ValidatedComposition, Mem3dgRun
-from shared.database import DatabaseConnector
+from shared.connect import DatabaseConnector
 from shared.environment import DEFAULT_JOB_COLLECTION_NAME, DEFAULT_BUCKET_NAME
 from shared.io import write_uploaded_file
+from shared.utils import deserialize_composition
 
 from gateway.handlers.states import generate_mem3dg_state
 
@@ -137,6 +138,15 @@ async def submit_utc_run(
 
 def check_composition(document_data: Dict) -> ValidatedComposition:
     validation = {'valid': True}
+
+    # validation 1 (fit data model)
+    try:
+        validation['composition'] = deserialize_composition(document_data)
+    except:
+        validation['valid'] = False
+        validation['composition'] = None
+
+    # validation 2
     invalid_nodes = []
     for node_name, node_spec in document_data.items():
         if "emitter" not in node_name:

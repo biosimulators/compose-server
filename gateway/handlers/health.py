@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from shared.data_model import DbClientResponse
-from shared.database import DatabaseConnector
+from shared.connect import DatabaseConnector
 from shared.environment import DEFAULT_DB_TYPE
 
 

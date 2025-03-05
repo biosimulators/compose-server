@@ -4,7 +4,7 @@ import logging
 
 from dotenv import load_dotenv
 
-from shared.database import MongoConnector
+from shared.connect import MongoConnector
 from shared.environment import ENV_PATH, DEFAULT_DB_NAME
 from shared.log_config import setup_logging
 

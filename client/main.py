@@ -188,12 +188,11 @@ async def run_vivarium(duration: int, vivarium_id: str = Query(default=None), do
     )
 
 
-
-
 @app.get(
     '/get-document',
     name="Get document",
     operation_id="get-document",
+    summary="Get the document required to instantiate a new Vivarium instance corresponding to the given vivarium_id",
     tags=["Composition"],
 )
 async def get_document(vivarium_id: str):
@@ -222,6 +221,6 @@ async def _get_pickle(vivarium_id: str) -> Response:
     return Response(content=signed_pickle, media_type="application/octet-stream")
 
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=3001)
+# if __name__ == "__main__":
+#     uvicorn.run(app, host="0.0.0.0", port=3001)
 

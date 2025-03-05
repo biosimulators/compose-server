@@ -21,15 +21,22 @@ class DynamicData:
 
 
 class StatefulDict(dict):
+    def __new__(cls, *args, **kwargs):
+        instance = super().__new__(cls)
+        return instance
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class Result(dict):
     def __new__(cls, global_time: float, *args, **kwargs):
-        kwargs["global_time"] = global_time
-        for k, v in kwargs.items():
-            setattr(cls, k, v)
-        return super(StatefulDict, cls).__new__(cls, *args, **kwargs)
+        instance = super().__new__(cls)
+        instance.global_time = global_time
+        return instance
 
-
-class Result(StatefulDict):
-    pass
+    def __init__(self, global_time: float, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 @dataclass

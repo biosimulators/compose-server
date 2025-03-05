@@ -5,6 +5,7 @@ import time
 from concurrent import futures
 
 import grpc
+from google.protobuf.internal.well_known_types import Struct
 from vivarium import Vivarium
 
 from common.proto import simulation_pb2, simulation_pb2_grpc
@@ -27,6 +28,13 @@ class ServerHandler:
         return data
 
     @classmethod
+    def convert_dict_to_struct(cls, data: dict) -> Struct:
+        """Converts a Python dictionary to a Protobuf Struct."""
+        proto_struct = Struct()
+        proto_struct.update(data)
+        return proto_struct
+
+    @classmethod
     def process_run(cls, duration: int, signed_pickle: bytes, job_id: str, vivarium_id: str, buffer: float = 0.05):
         try:
             safe_pickle = cls.verify_pickle(signed_pickle, TEST_KEY)
@@ -36,11 +44,16 @@ class ServerHandler:
                 vivarium.run(1)  # TODO: make this timestep more controllable and smaller
                 results_k = vivarium.get_results()
 
+                proto_results = [
+                    simulation_pb2.Result(data=cls.convert_dict_to_struct(result))
+                    for result in results_k
+                ]
+
                 # stream kth update
                 yield simulation_pb2.SimulationUpdate(
                     job_id=job_id,
                     last_updated=timestamp(),
-                    results=results_k
+                    results=proto_results
                 )
 
                 # write the updated vivarium state to the pickle file

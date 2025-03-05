@@ -4,6 +4,7 @@ from tempfile import mkdtemp
 
 import grpc
 from fastapi import UploadFile, HTTPException
+from google.protobuf.json_format import MessageToDict
 
 from common.proto import simulation_pb2_grpc, simulation_pb2
 from shared.environment import LOCAL_GRPC_MAPPING
@@ -44,7 +45,7 @@ class ClientHandler:
             raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")
 
     @classmethod
-    def submit_run(cls, last_updated: str, duration: int, signed_pickle: bytes, job_id: str, vivarium_id: str) -> list[dict[str, str | dict]]:
+    def submit_run(cls, last_updated: str, duration: int, signed_pickle: bytes, job_id: str, vivarium_id: str) -> list[list[dict[str, str | dict]]]:
         with grpc.insecure_channel(LOCAL_GRPC_MAPPING) as channel:
             stub = simulation_pb2_grpc.VivariumServiceStub(channel)
             request = simulation_pb2.VivariumRequest(
@@ -60,14 +61,19 @@ class ClientHandler:
             # TODO: the following block should be generalized (used by many)
             results = []
             for update in response_iterator:
-                # TODO: fit this into the data model!
-                result = {
-                    "job_id": update.job_id,
-                    "last_updated": update.last_updated,
-                    "results": update.results
-                }
-                results.append(result)
-                print(f'Got result: {result}')
+                structured_results = [
+                    MessageToDict(result.data)  # ✅ Convert Protobuf Struct to dict
+                    for result in update.results
+                ]
+                results.append(structured_results)
+                # # TODO: fit this into the data model!
+                # result = {
+                #     "job_id": update.job_id,
+                #     "last_updated": update.last_updated,
+                #     "results": update.results
+                # }
+                # results.append(result)
+                # print(f'Got result: {result}')
 
             return results
 

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 import process_bigraph as pbg
 from vivarium import Vivarium
+from vivarium.tests import TOY_PROCESSES
 from bsp import app_registrar
 
 from shared.data_model import Results, Result, ValidatedComposition
@@ -21,7 +22,8 @@ def create_vivarium(
         document: dict = None,
         core: pbg.ProcessTypes = CORE
 ) -> Vivarium:
-    vivarium = Vivarium(processes=core.process_registry.registry, document=document)
+    processes_to_use = [core.process_registry.registry, TOY_PROCESSES]
+    vivarium = Vivarium(processes=processes_to_use, document=document)
     vivarium.add_emitter()
     return vivarium
 

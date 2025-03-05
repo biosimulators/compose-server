@@ -12,7 +12,7 @@ from shared.io import download_file, upload_blob
 def read_pickle(vivarium_id: str, temp_dir: str) -> Vivarium:
     remote_pickle_path = get_remote_pickle_path(vivarium_id)
     local_pickle_file = download_file(remote_pickle_path, temp_dir, DEFAULT_BUCKET_NAME)
-    with open(remote_pickle_path, "rb") as f:
+    with open(local_pickle_file, "rb") as f:
         return pickle.load(f)
 
 

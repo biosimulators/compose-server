@@ -6,6 +6,7 @@ Author: Alexander Patrie <@AlexPatrie>
 
 import json
 import os
+import shutil
 import uuid
 import sys
 from tempfile import mkdtemp
@@ -35,7 +36,7 @@ from yaml import compose
 
 from shared.io import write_uploaded_file, download_file_from_bucket, write_local_file
 from shared.log_config import setup_logging
-from shared.serial import write_pickle, create_vivarium_id
+from shared.serial import write_pickle, create_vivarium_id, read_pickle
 from shared.utils import get_project_version, new_job_id, handle_exception, serialize_numpy, clean_temp_files
 from shared.environment import (
     ENV_PATH,
@@ -237,6 +238,23 @@ async def create_new_vivarium(document: UploadFile = File(default=None)):
     remote_vivarium_pickle_path = write_pickle(viv, new_id)
 
     return {'vivarium_id': new_id, 'remote_path': remote_vivarium_pickle_path}
+
+
+@app.get(
+    '/get-document',
+    name="Get document",
+    operation_id="get-document",
+    tags=["Composition"],
+)
+async def get_document(vivarium_id: str):
+    # hydrate pickle into vivarium
+    temp_dir = mkdtemp()
+    vivarium: Vivarium = read_pickle(vivarium_id, temp_dir)
+
+    # clean temp dir
+    shutil.rmtree(temp_dir)
+
+    return vivarium.make_document()
 
 
 if __name__ == "__main__":

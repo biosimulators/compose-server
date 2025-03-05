@@ -44,7 +44,7 @@ from shared.environment import (
     ENV_PATH,
     DEFAULT_DB_NAME,
     DEFAULT_JOB_COLLECTION_NAME,
-    DEFAULT_BUCKET_NAME, LOCAL_GRPC_MAPPING
+    DEFAULT_BUCKET_NAME, LOCAL_GRPC_MAPPING, TEST_KEY
 )
 from shared.data_model import (
     BigraphRegistryAddresses,
@@ -84,7 +84,6 @@ dotenv.load_dotenv(ENV_PATH)
 STANDALONE_GATEWAY = bool(os.getenv("STANDALONE_GATEWAY"))
 MONGO_URI = os.getenv("MONGO_URI") if not STANDALONE_GATEWAY else os.getenv("STANDALONE_MONGO_URI")
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-TEST_KEY = b"supersecurekey"
 
 # -- app constraints and components -- #
 

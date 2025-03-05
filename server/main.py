@@ -8,6 +8,7 @@ import grpc
 from vivarium import Vivarium
 
 from common.proto import simulation_pb2, simulation_pb2_grpc
+from shared.environment import TEST_KEY
 from shared.serial import get_remote_pickle_path, write_pickle
 from shared.utils import timestamp
 from shared.vivarium import create_vivarium, run_composition, convert_process
@@ -27,25 +28,30 @@ class ServerHandler:
 
     @classmethod
     def process_run(cls, duration: int, signed_pickle: bytes, job_id: str, vivarium_id: str, buffer: float = 0.05):
-        vivarium: Vivarium = pickle.loads(signed_pickle)
-        for _ in range(duration):
-            # run simulation for k
-            vivarium.run(1)  # TODO: make this timestep more controllable and smaller
-            results_k = vivarium.get_results()
+        try:
+            safe_pickle = cls.verify_pickle(signed_pickle, TEST_KEY)
+            vivarium: Vivarium = pickle.loads(safe_pickle)
+            for _ in range(duration):
+                # run simulation for k
+                vivarium.run(1)  # TODO: make this timestep more controllable and smaller
+                results_k = vivarium.get_results()
 
-            # stream kth update
-            yield simulation_pb2.SimulationUpdate(
-                job_id=job_id,
-                last_updated=timestamp(),
-                results=results_k
-            )
+                # stream kth update
+                yield simulation_pb2.SimulationUpdate(
+                    job_id=job_id,
+                    last_updated=timestamp(),
+                    results=results_k
+                )
 
-            # write the updated vivarium state to the pickle file
-            # remote_pickle_path = get_remote_pickle_path(vivarium_id)
-            # write_pickle(vivarium_id=vivarium_id, vivarium=vivarium)
+                # write the updated vivarium state to the pickle file
+                # remote_pickle_path = get_remote_pickle_path(vivarium_id)
+                # write_pickle(vivarium_id=vivarium_id, vivarium=vivarium)
 
-            # add buffer: TODO: do we need this?
-            time.sleep(buffer)
+                # add buffer: TODO: do we need this?
+                time.sleep(buffer)
+        except Exception as e:
+            print(e)
+            raise grpc.RpcError(grpc.StatusCode.INTERNAL, str(e))
 
 
 class VivariumService(simulation_pb2_grpc.VivariumServiceServicer):

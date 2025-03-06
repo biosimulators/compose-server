@@ -1,38 +1,55 @@
-async function fetchStream(url) {
-    const response = await fetch(url);
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
+class VivariumService {
+    constructor(root= 'http://127.0.0.1:3001') {
+        this.root = root;
+        this.testId = 'test';
+    }
 
-    let jsonData = "";
-    let isFirstChunk = true;
+    formatUrl(root, duration, id) {
+        return `${root}/run-vivarium?duration=${duration}&vivarium_id=${id}`;
+    }
 
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-            console.log("Stream finished.");
-            break;
-        }
+    async fetchStream(url) {
+        const response = await fetch(url);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
 
-        jsonData += decoder.decode(value);
+        let jsonData = "";
+        let isFirstChunk = true;
 
-        try {
-            if (isFirstChunk) {
-                jsonData = jsonData.replace('{"updates": [', "[");  // ✅ Handle initial chunk
-                isFirstChunk = false;
-            }
-
-            if (jsonData.endsWith("]}")) {
-                const parsedData = JSON.parse(jsonData);
-                console.log("Final JSON:", parsedData);
+        while (true) {
+            const {done, value} = await reader.read();
+            if (done) {
+                console.log("Stream finished.");
                 break;
-            } else {
-                console.log("Streaming JSON chunk received:", jsonData);
             }
-        } catch (e) {
-            console.log("Waiting for more JSON data...");
+
+            jsonData += decoder.decode(value);
+
+            try {
+                if (isFirstChunk) {
+                    jsonData = jsonData.replace('{"updates": [', "[");  // ✅ Handle initial chunk
+                    isFirstChunk = false;
+                }
+
+                if (jsonData.endsWith("]}")) {
+                    const parsedData = JSON.parse(jsonData);
+                    console.log("Final JSON:", parsedData);
+                    break;
+                } else {
+                    console.log("Streaming JSON chunk received:", jsonData);
+                }
+            } catch (e) {
+                console.log("Waiting for more JSON data...");
+            }
         }
     }
-}
 
-const testId = 'vivarium-8463a3ef-5632-4e92-b04a-076b62deb3f3-395354397';
-const testUrl = `http://127.0.0.1:3001/run-vivarium?duration=10&vivarium_id=${testId}`;
+    submitRequest(duration, id) {
+        const url = this.formatUrl(this.root, duration, id);
+        return this.fetchStream(url);
+    }
+
+    sendTestRequest(duration) {
+        return this.submitRequest(duration, this.testId);
+    }
+}

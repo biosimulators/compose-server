@@ -197,9 +197,7 @@ class ClientHandler:
     operation_id="new-vivarium",
     tags=["Composition"],
 )
-async def create_new_vivarium(
-        document: UploadFile | str | None = None,
-):
+async def create_new_vivarium(document: UploadFile | str | None = None):
     # compile all possible registrations TODO: generalize/streamline this
     registered_processes: dict = CORE.process_registry.registry
     registered_processes.update(TOY_PROCESSES)
@@ -314,19 +312,19 @@ async def get_document(vivarium_id: str):
     return vivarium.make_document()
 
 
-@app.get(
-    '/_get-pickle',
-    operation_id="_get-pickle",
-    tags=["Composition"],
-    name="_get-pickle",
-    response_class=Response
-)
-async def _get_pickle(vivarium_id: str) -> Response:
-    temp_dir = mkdtemp()
-    p: bytes = get_pickle(vivarium_id, temp_dir)
-    compressed_pickle = zlib.compress(p)
-    signed_pickle = sign_pickle(compressed_pickle, TEST_KEY)
-    return Response(content=signed_pickle, media_type="application/octet-stream")
+# @app.get(
+#     '/_get-pickle',
+#     operation_id="_get-pickle",
+#     tags=["Composition"],
+#     name="_get-pickle",
+#     response_class=Response
+# )
+# async def _get_pickle(vivarium_id: str) -> Response:
+#     temp_dir = mkdtemp()
+#     p: bytes = get_pickle(vivarium_id, temp_dir)
+#     compressed_pickle = zlib.compress(p)
+#     signed_pickle = sign_pickle(compressed_pickle, TEST_KEY)
+#     return Response(content=signed_pickle, media_type="application/octet-stream")
 
 
 # if __name__ == "__main__":

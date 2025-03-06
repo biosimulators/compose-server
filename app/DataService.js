@@ -34,4 +34,5 @@ async function fetchStream(url) {
     }
 }
 
-const testUrl = 'http://127.0.0.1:3001/run-vivarium?duration=10&vivarium_id=vivarium-8463a3ef-5632-4e92-b04a-076b62deb3f3-395354397'
+const testId = 'vivarium-8463a3ef-5632-4e92-b04a-076b62deb3f3-395354397';
+const testUrl = `http://127.0.0.1:3001/run-vivarium?duration=10&vivarium_id=${testId}`;

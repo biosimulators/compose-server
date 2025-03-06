@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import logging
 import pickle
+import shutil
 import time
 from concurrent import futures
 from tempfile import mkdtemp
@@ -12,8 +13,12 @@ from vivarium import Vivarium
 
 from common.proto import simulation_pb2, simulation_pb2_grpc
 from shared.environment import TEST_KEY
+from shared.log_config import setup_logging
 from shared.serial import get_remote_pickle_path, write_pickle, hydrate_pickle
 from shared.utils import timestamp
+
+
+logger = setup_logging(__file__)
 
 
 class ServerHandler:
@@ -34,13 +39,12 @@ class ServerHandler:
             tmp = mkdtemp()
             vivarium: Vivarium = hydrate_pickle(vivarium_id=vivarium_id, temp_dir=tmp)
 
-            for _ in range(duration):
+            for i in range(duration):
                 # run simulation for k
                 vivarium.run(1)  # TODO: make this timestep more controllable and smaller
                 results_k = vivarium.get_results()
                 if not isinstance(results_k, list):
-                    print(f'Results is not a list!')
-                    print(type(results_k))
+                    raise Exception("Results could not be parsed as a list.")
 
                 # convert data
                 proto_results = []
@@ -60,6 +64,8 @@ class ServerHandler:
                 # write the updated vivarium state to the pickle file
                 remote_pickle_path = get_remote_pickle_path(vivarium_id)
                 write_pickle(vivarium_id=vivarium_id, vivarium=vivarium)
+
+            shutil.rmtree(tmp)
         except Exception as e:
             print(e)
             raise grpc.RpcError(grpc.StatusCode.INTERNAL, str(e))
@@ -72,7 +78,12 @@ class VivariumService(simulation_pb2_grpc.VivariumServiceServicer):
 
     def StreamVivarium(self, request, context):
         """Handles a gRPC streaming request from a client."""
-        for update in ServerHandler.process_run(duration=request.duration, pickle_path=request.pickle_path, job_id=request.job_id, vivarium_id=request.vivarium_id):
+        for update in ServerHandler.process_run(
+                duration=request.duration,
+                pickle_path=request.pickle_path,
+                job_id=request.job_id,
+                vivarium_id=request.vivarium_id
+        ):
             if context.is_active():
                 yield update
                 time.sleep(self.buffer)

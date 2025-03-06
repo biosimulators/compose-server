@@ -5,10 +5,6 @@ import "google/protobuf/any.proto";
 
 package compose;
 
-service SimulationService {
-    rpc StreamSimulation (SimulationRequest) returns (stream SimulationUpdate);
-}
-
 service VivariumService {
     rpc StreamVivarium (VivariumRequest) returns (stream SimulationUpdate);
 }
@@ -16,42 +12,13 @@ service VivariumService {
 message VivariumRequest {
     string last_updated = 1;
     int32 duration = 2;
-    bytes payload = 3;
+    string pickle_path = 3;
     string job_id = 4;
     string vivarium_id = 5;
-}
-
-message Object {
-    // repeated string path = 2;
-    google.protobuf.Any value = 1;
-}
-
-message Process {
-    string type = 1;
-    string address = 2;
-    map<string, google.protobuf.Struct> config = 3;
-    map<string, Object> inputs = 4;
-    map<string, Object> outputs = 5;
-}
-
-message Result {
-    map<string, google.protobuf.Struct> data = 1;
-}
-
-message Results {
-    repeated Result data = 1;
-}
-
-message SimulationRequest {
-    string job_id = 1;
-    string last_updated = 2;
-    repeated string simulators = 3;
-    int32 duration = 4;
-    map<string, Process> spec = 5;
 }
 
 message SimulationUpdate {
     string job_id = 1;
     string last_updated = 2;
-    repeated Result results = 3;
+    repeated google.protobuf.Struct results = 3;
 }

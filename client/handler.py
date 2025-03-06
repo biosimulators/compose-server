@@ -45,13 +45,13 @@ class ClientHandler:
             raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")
 
     @classmethod
-    def submit_run(cls, last_updated: str, duration: int, signed_pickle: bytes, job_id: str, vivarium_id: str) -> list[list[dict[str, str | dict]]]:
+    def submit_run(cls, last_updated: str, duration: int, pickle_path: str, job_id: str, vivarium_id: str) -> list[list[dict[str, str | dict]]]:
         with grpc.insecure_channel(LOCAL_GRPC_MAPPING) as channel:
             stub = simulation_pb2_grpc.VivariumServiceStub(channel)
             request = simulation_pb2.VivariumRequest(
                 last_updated=last_updated,
                 duration=duration,
-                payload=signed_pickle,
+                pickle_path=pickle_path,
                 job_id=job_id,
                 vivarium_id=vivarium_id
             )
@@ -60,20 +60,22 @@ class ClientHandler:
 
             # TODO: the following block should be generalized (used by many)
             results = []
-            for update in response_iterator:
-                structured_results = [
-                    MessageToDict(result.data)  # ✅ Convert Protobuf Struct to dict
-                    for result in update.results
-                ]
-                results.append(structured_results)
-                # # TODO: fit this into the data model!
-                # result = {
-                #     "job_id": update.job_id,
-                #     "last_updated": update.last_updated,
-                #     "results": update.results
-                # }
-                # results.append(result)
-                # print(f'Got result: {result}')
+            print(f'got update: {response_iterator.result()}')
+            # for update in response_iterator:
+            #     print(f'Result: {update}')
+            #     # structured_results = [
+            #     #     MessageToDict(result)  # ✅ Convert Protobuf Struct to dict
+            #     #     for result in update.results
+            #     # ]
+            #     # results.append(structured_results)
+            #     # # TODO: fit this into the data model!
+            #     # result = {
+            #     #     "job_id": update.job_id,
+            #     #     "last_updated": update.last_updated,
+            #     #     "results": update.results
+            #     # }
+            #     # results.append(result)
+            #     # print(f'Got result: {result}')
 
             return results
 

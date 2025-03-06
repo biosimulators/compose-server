@@ -26,49 +26,17 @@ from google.protobuf import struct_pb2 as google_dot_protobuf_dot_struct__pb2
 from google.protobuf import any_pb2 as google_dot_protobuf_dot_any__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10simulation.proto\x12\x07\x63ompose\x1a\x1cgoogle/protobuf/struct.proto\x1a\x19google/protobuf/any.proto\"o\n\x0fVivariumRequest\x12\x14\n\x0clast_updated\x18\x01 \x01(\t\x12\x10\n\x08\x64uration\x18\x02 \x01(\x05\x12\x0f\n\x07payload\x18\x03 \x01(\x0c\x12\x0e\n\x06job_id\x18\x04 \x01(\t\x12\x13\n\x0bvivarium_id\x18\x05 \x01(\t\"-\n\x06Object\x12#\n\x05value\x18\x01 \x01(\x0b\x32\x14.google.protobuf.Any\"\xfd\x02\n\x07Process\x12\x0c\n\x04type\x18\x01 \x01(\t\x12\x0f\n\x07\x61\x64\x64ress\x18\x02 \x01(\t\x12,\n\x06\x63onfig\x18\x03 \x03(\x0b\x32\x1c.compose.Process.ConfigEntry\x12,\n\x06inputs\x18\x04 \x03(\x0b\x32\x1c.compose.Process.InputsEntry\x12.\n\x07outputs\x18\x05 \x03(\x0b\x32\x1d.compose.Process.OutputsEntry\x1a\x46\n\x0b\x43onfigEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12&\n\x05value\x18\x02 \x01(\x0b\x32\x17.google.protobuf.Struct:\x02\x38\x01\x1a>\n\x0bInputsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1e\n\x05value\x18\x02 \x01(\x0b\x32\x0f.compose.Object:\x02\x38\x01\x1a?\n\x0cOutputsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1e\n\x05value\x18\x02 \x01(\x0b\x32\x0f.compose.Object:\x02\x38\x01\"w\n\x06Result\x12\'\n\x04\x64\x61ta\x18\x01 \x03(\x0b\x32\x19.compose.Result.DataEntry\x1a\x44\n\tDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12&\n\x05value\x18\x02 \x01(\x0b\x32\x17.google.protobuf.Struct:\x02\x38\x01\"(\n\x07Results\x12\x1d\n\x04\x64\x61ta\x18\x01 \x03(\x0b\x32\x0f.compose.Result\"\xd2\x01\n\x11SimulationRequest\x12\x0e\n\x06job_id\x18\x01 \x01(\t\x12\x14\n\x0clast_updated\x18\x02 \x01(\t\x12\x12\n\nsimulators\x18\x03 \x03(\t\x12\x10\n\x08\x64uration\x18\x04 \x01(\x05\x12\x32\n\x04spec\x18\x05 \x03(\x0b\x32$.compose.SimulationRequest.SpecEntry\x1a=\n\tSpecEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1f\n\x05value\x18\x02 \x01(\x0b\x32\x10.compose.Process:\x02\x38\x01\"Z\n\x10SimulationUpdate\x12\x0e\n\x06job_id\x18\x01 \x01(\t\x12\x14\n\x0clast_updated\x18\x02 \x01(\t\x12 \n\x07results\x18\x03 \x03(\x0b\x32\x0f.compose.Result2`\n\x11SimulationService\x12K\n\x10StreamSimulation\x12\x1a.compose.SimulationRequest\x1a\x19.compose.SimulationUpdate0\x01\x32Z\n\x0fVivariumService\x12G\n\x0eStreamVivarium\x12\x18.compose.VivariumRequest\x1a\x19.compose.SimulationUpdate0\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10simulation.proto\x12\x07\x63ompose\x1a\x1cgoogle/protobuf/struct.proto\x1a\x19google/protobuf/any.proto\"s\n\x0fVivariumRequest\x12\x14\n\x0clast_updated\x18\x01 \x01(\t\x12\x10\n\x08\x64uration\x18\x02 \x01(\x05\x12\x13\n\x0bpickle_path\x18\x03 \x01(\t\x12\x0e\n\x06job_id\x18\x04 \x01(\t\x12\x13\n\x0bvivarium_id\x18\x05 \x01(\t\"b\n\x10SimulationUpdate\x12\x0e\n\x06job_id\x18\x01 \x01(\t\x12\x14\n\x0clast_updated\x18\x02 \x01(\t\x12(\n\x07results\x18\x03 \x03(\x0b\x32\x17.google.protobuf.Struct2Z\n\x0fVivariumService\x12G\n\x0eStreamVivarium\x12\x18.compose.VivariumRequest\x1a\x19.compose.SimulationUpdate0\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'simulation_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_PROCESS_CONFIGENTRY']._loaded_options = None
-  _globals['_PROCESS_CONFIGENTRY']._serialized_options = b'8\001'
-  _globals['_PROCESS_INPUTSENTRY']._loaded_options = None
-  _globals['_PROCESS_INPUTSENTRY']._serialized_options = b'8\001'
-  _globals['_PROCESS_OUTPUTSENTRY']._loaded_options = None
-  _globals['_PROCESS_OUTPUTSENTRY']._serialized_options = b'8\001'
-  _globals['_RESULT_DATAENTRY']._loaded_options = None
-  _globals['_RESULT_DATAENTRY']._serialized_options = b'8\001'
-  _globals['_SIMULATIONREQUEST_SPECENTRY']._loaded_options = None
-  _globals['_SIMULATIONREQUEST_SPECENTRY']._serialized_options = b'8\001'
   _globals['_VIVARIUMREQUEST']._serialized_start=86
-  _globals['_VIVARIUMREQUEST']._serialized_end=197
-  _globals['_OBJECT']._serialized_start=199
-  _globals['_OBJECT']._serialized_end=244
-  _globals['_PROCESS']._serialized_start=247
-  _globals['_PROCESS']._serialized_end=628
-  _globals['_PROCESS_CONFIGENTRY']._serialized_start=429
-  _globals['_PROCESS_CONFIGENTRY']._serialized_end=499
-  _globals['_PROCESS_INPUTSENTRY']._serialized_start=501
-  _globals['_PROCESS_INPUTSENTRY']._serialized_end=563
-  _globals['_PROCESS_OUTPUTSENTRY']._serialized_start=565
-  _globals['_PROCESS_OUTPUTSENTRY']._serialized_end=628
-  _globals['_RESULT']._serialized_start=630
-  _globals['_RESULT']._serialized_end=749
-  _globals['_RESULT_DATAENTRY']._serialized_start=681
-  _globals['_RESULT_DATAENTRY']._serialized_end=749
-  _globals['_RESULTS']._serialized_start=751
-  _globals['_RESULTS']._serialized_end=791
-  _globals['_SIMULATIONREQUEST']._serialized_start=794
-  _globals['_SIMULATIONREQUEST']._serialized_end=1004
-  _globals['_SIMULATIONREQUEST_SPECENTRY']._serialized_start=943
-  _globals['_SIMULATIONREQUEST_SPECENTRY']._serialized_end=1004
-  _globals['_SIMULATIONUPDATE']._serialized_start=1006
-  _globals['_SIMULATIONUPDATE']._serialized_end=1096
-  _globals['_SIMULATIONSERVICE']._serialized_start=1098
-  _globals['_SIMULATIONSERVICE']._serialized_end=1194
-  _globals['_VIVARIUMSERVICE']._serialized_start=1196
-  _globals['_VIVARIUMSERVICE']._serialized_end=1286
+  _globals['_VIVARIUMREQUEST']._serialized_end=201
+  _globals['_SIMULATIONUPDATE']._serialized_start=203
+  _globals['_SIMULATIONUPDATE']._serialized_end=301
+  _globals['_VIVARIUMSERVICE']._serialized_start=303
+  _globals['_VIVARIUMSERVICE']._serialized_end=393
 # @@protoc_insertion_point(module_scope)

@@ -1,16 +1,18 @@
 import hashlib
 import hmac
+import logging
 import pickle
 import time
 from concurrent import futures
+from tempfile import mkdtemp
 
 import grpc
-from google.protobuf.internal.well_known_types import Struct
+from google.protobuf.struct_pb2 import Struct
 from vivarium import Vivarium
 
 from common.proto import simulation_pb2, simulation_pb2_grpc
 from shared.environment import TEST_KEY
-from shared.serial import get_remote_pickle_path, write_pickle
+from shared.serial import get_remote_pickle_path, write_pickle, hydrate_pickle
 from shared.utils import timestamp
 from shared.vivarium import create_vivarium, run_composition, convert_process
 
@@ -28,58 +30,67 @@ class ServerHandler:
         return data
 
     @classmethod
-    def convert_dict_to_struct(cls, data: dict) -> Struct:
-        """Converts a Python dictionary to a Protobuf Struct."""
-        proto_struct = Struct()
-        proto_struct.update(data)
-        return proto_struct
-
-    @classmethod
-    def process_run(cls, duration: int, signed_pickle: bytes, job_id: str, vivarium_id: str, buffer: float = 0.05):
+    def process_run(cls, duration: int, pickle_path: str, job_id: str, vivarium_id: str, buffer: float = 0.05):
         try:
-            safe_pickle = cls.verify_pickle(signed_pickle, TEST_KEY)
-            vivarium: Vivarium = pickle.loads(safe_pickle)
+            tmp = mkdtemp()
+            vivarium: Vivarium = hydrate_pickle(vivarium_id=vivarium_id, temp_dir=tmp)
+
             for _ in range(duration):
                 # run simulation for k
                 vivarium.run(1)  # TODO: make this timestep more controllable and smaller
                 results_k = vivarium.get_results()
+                if not isinstance(results_k, list):
+                    print(f'Results is not a list!')
+                    print(type(results_k))
 
-                proto_results = [
-                    simulation_pb2.Result(data=cls.convert_dict_to_struct(result))
-                    for result in results_k
-                ]
+                # convert data
+                proto_results = []
+                for result in results_k:
+                    struct = Struct()
+                    struct.update(result)
+                    proto_results.append(struct)
 
                 # stream kth update
-                yield simulation_pb2.SimulationUpdate(
+                update = simulation_pb2.SimulationUpdate(
                     job_id=job_id,
                     last_updated=timestamp(),
                     results=proto_results
                 )
+                print(f'Server is streaming update: {update}')
+                yield update
 
                 # write the updated vivarium state to the pickle file
                 # remote_pickle_path = get_remote_pickle_path(vivarium_id)
                 # write_pickle(vivarium_id=vivarium_id, vivarium=vivarium)
 
                 # add buffer: TODO: do we need this?
-                time.sleep(buffer)
+                print(f'Sleeping')
+                time.sleep(5)
         except Exception as e:
             print(e)
             raise grpc.RpcError(grpc.StatusCode.INTERNAL, str(e))
 
 
 class VivariumService(simulation_pb2_grpc.VivariumServiceServicer):
+    # def SendData(self, request, context):
+    #     """Handles a single request-response gRPC call."""
+    #     self.update_state(request)
+    #     logging.info(f"Updated state: {self.state}")
+    #     return service_pb2.BodyStateData(x=self.state.x, y=self.state.y, z=self.state.z)
+
     def StreamVivarium(self, request, context):
         """Handles a gRPC streaming request from a client."""
-        print(f"Received SimulationRequest for job_id: {request.job_id}")
-
-        # Run simulation and stream responses
-        for update in ServerHandler.process_run(
-                job_id=request.job_id,
-                duration=request.duration,
-                signed_pickle=request.payload,
-                vivarium_id=request.vivarium_id
-        ):
+        for update in ServerHandler.process_run(duration=request.duration, pickle_path=request.pickle_path, job_id=request.job_id, vivarium_id=request.vivarium_id):
+            print(f'Server processed the update: {update}')
             yield update
+        # Run simulation and stream responses
+        # for update in ServerHandler.process_run(
+        #         job_id=request.job_id,
+        #         duration=request.duration,
+        #         signed_pickle=request.payload,
+        #         vivarium_id=request.vivarium_id
+        # ):
+        #     yield update
 
 
 def serve():

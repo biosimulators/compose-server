@@ -18,7 +18,9 @@ dependencies = [
     "biosimulator-processes",
     "imageio",
     "nbformat",
-    "websockets"
+    "websockets",
+    "grpcio",
+    "grpcio-tools"
 ]
 
 [project.optional-dependencies]

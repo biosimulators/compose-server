@@ -24,7 +24,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Query, APIRouter, 
 from google.protobuf.json_format import MessageToDict
 from process_bigraph import Process, pp, Composite
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import FileResponse
+from starlette.responses import FileResponse, StreamingResponse
 from pydantic import BeforeValidator
 from google.protobuf.struct_pb2 import Struct
 from google.protobuf.any_pb2 import Any
@@ -85,6 +85,7 @@ dotenv.load_dotenv(ENV_PATH)
 STANDALONE_GATEWAY = bool(os.getenv("STANDALONE_GATEWAY"))
 MONGO_URI = os.getenv("MONGO_URI") if not STANDALONE_GATEWAY else os.getenv("STANDALONE_MONGO_URI")
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+TEST_VIVARIUM_ID = os.getenv("TEST_VIVARIUM_ID")
 
 # -- app constraints and components -- #
 
@@ -196,7 +197,9 @@ class ClientHandler:
     operation_id="new-vivarium",
     tags=["Composition"],
 )
-async def create_new_vivarium(document: UploadFile = Depends(optional_file)):
+async def create_new_vivarium(
+        document: UploadFile | str | None = None,
+):
     # compile all possible registrations TODO: generalize/streamline this
     registered_processes: dict = CORE.process_registry.registry
     registered_processes.update(TOY_PROCESSES)
@@ -206,7 +209,7 @@ async def create_new_vivarium(document: UploadFile = Depends(optional_file)):
     composite_spec: dict[str, str | dict] | None = None
 
     # handle document upload
-    if document is not None:
+    if document:
         ClientHandler.check_document_extension(document)
 
         file_content: bytes = await document.read()
@@ -223,30 +226,74 @@ async def create_new_vivarium(document: UploadFile = Depends(optional_file)):
     return {'vivarium_id': new_id, 'remote_path': remote_vivarium_pickle_path}
 
 
-@app.post(
+@app.get(
     '/run-vivarium',
     name="Run vivarium",
     operation_id="run-vivarium",
     tags=["Composition"],
 )
-async def run_vivarium(duration: int, vivarium_id: str = Query(default=None)):  # , document: UploadFile = Depends(optional_file)):
-    # create new vivarium if no id passed
+async def run_vivarium(duration: int, vivarium_id: str = Query(default=None)):
+    """Streams gRPC responses as they arrive to the FastAPI client."""
     if vivarium_id is None:
-        new_viv_response: dict[str, str] = await create_new_vivarium()  # (document)
-        vivarium_id: str = new_viv_response['vivarium_id']
+        new_viv_response = await create_new_vivarium()
+        vivarium_id = new_viv_response['vivarium_id']
 
-    # get the pickle as bytes data from the vivarium_id
     pickle_path = get_remote_pickle_path(vivarium_id)
-    last_updated: str = timestamp()
-    job_id: str = new_job_id('run-vivarium')
+    last_updated = timestamp()
+    job_id = new_job_id('run-vivarium')
 
-    return ClientHandler.submit_run(
-        last_updated=last_updated,
-        duration=duration,
-        pickle_path=pickle_path,
-        job_id=job_id,
-        vivarium_id=vivarium_id
-    )
+    async def event_stream():
+        channel = grpc.insecure_channel(LOCAL_GRPC_MAPPING)
+        try:
+            stub = simulation_pb2_grpc.VivariumServiceStub(channel)
+            request = simulation_pb2.VivariumRequest(
+                last_updated=last_updated,
+                duration=duration,
+                pickle_path=pickle_path,
+                job_id=job_id,
+                vivarium_id=vivarium_id
+            )
+            response_iterator = stub.StreamVivarium(request)
+
+            yield '{"updates": ['
+            first = True
+            for update in response_iterator:
+                structured_results = [
+                    MessageToDict(result) for result in update.results
+                ]
+                if not first:
+                    yield ","
+                yield json.dumps({
+                    "job_id": update.job_id,
+                    "last_updated": update.last_updated,
+                    "results": structured_results
+                })
+                first = False
+
+            yield ']}\n'
+
+        except grpc.RpcError as e:
+            yield json.dumps({"error": e.details()})
+
+        finally:
+            channel.close()
+
+        # try:
+            #     for update in response_iterator:
+            #         structured_results = [
+            #             MessageToDict(result) for result in update.results
+            #         ]
+            #         yield f"data: {json.dumps(structured_results)}\n\n"
+            #         # yield json.dumps({
+            #         #     "job_id": update.job_id,
+            #         #     "last_updated": update.last_updated,
+            #         #     "results": structured_results
+            #         # }) + "\n"
+            # except grpc.RpcError as e:
+            #     print(f"gRPC Error: {e.details()}")
+            #     yield f"data: ERROR: {e.details()}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="application/json")
 
 
 @app.get(
@@ -284,4 +331,4 @@ async def _get_pickle(vivarium_id: str) -> Response:
 
 # if __name__ == "__main__":
 #     uvicorn.run(app, host="0.0.0.0", port=3001)
-
+# uvicorn client.main:app --reload --host 0.0.0.0 --port 3001

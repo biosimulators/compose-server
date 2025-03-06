@@ -14,7 +14,6 @@ from common.proto import simulation_pb2, simulation_pb2_grpc
 from shared.environment import TEST_KEY
 from shared.serial import get_remote_pickle_path, write_pickle, hydrate_pickle
 from shared.utils import timestamp
-from shared.vivarium import create_vivarium, run_composition, convert_process
 
 
 class ServerHandler:
@@ -56,41 +55,30 @@ class ServerHandler:
                     last_updated=timestamp(),
                     results=proto_results
                 )
-                print(f'Server is streaming update: {update}')
                 yield update
 
                 # write the updated vivarium state to the pickle file
-                # remote_pickle_path = get_remote_pickle_path(vivarium_id)
-                # write_pickle(vivarium_id=vivarium_id, vivarium=vivarium)
-
-                # add buffer: TODO: do we need this?
-                print(f'Sleeping')
-                time.sleep(5)
+                remote_pickle_path = get_remote_pickle_path(vivarium_id)
+                write_pickle(vivarium_id=vivarium_id, vivarium=vivarium)
         except Exception as e:
             print(e)
             raise grpc.RpcError(grpc.StatusCode.INTERNAL, str(e))
 
 
 class VivariumService(simulation_pb2_grpc.VivariumServiceServicer):
-    # def SendData(self, request, context):
-    #     """Handles a single request-response gRPC call."""
-    #     self.update_state(request)
-    #     logging.info(f"Updated state: {self.state}")
-    #     return service_pb2.BodyStateData(x=self.state.x, y=self.state.y, z=self.state.z)
+    @property
+    def buffer(self) -> float:
+        return 0.25
 
     def StreamVivarium(self, request, context):
         """Handles a gRPC streaming request from a client."""
         for update in ServerHandler.process_run(duration=request.duration, pickle_path=request.pickle_path, job_id=request.job_id, vivarium_id=request.vivarium_id):
-            print(f'Server processed the update: {update}')
-            yield update
-        # Run simulation and stream responses
-        # for update in ServerHandler.process_run(
-        #         job_id=request.job_id,
-        #         duration=request.duration,
-        #         signed_pickle=request.payload,
-        #         vivarium_id=request.vivarium_id
-        # ):
-        #     yield update
+            if context.is_active():
+                yield update
+                time.sleep(self.buffer)
+            else:
+                print(f'Client is disconnected!')
+                break
 
 
 def serve():

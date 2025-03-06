@@ -135,7 +135,6 @@ class ClientHandler:
     @classmethod
     async def parse_uploaded_files_in_spec(cls, model_files: list[UploadFile], config_data: dict) -> list[str]:
         temp_files = []
-
         # parse config for model specification TODO: generalize this
         for uploaded_file in model_files:
             # case: has a SedModel config spec (ode, fba, smoldyn)
@@ -182,20 +181,11 @@ class ClientHandler:
             # TODO: the following block should be generalized (used by many)
             results = []
             for update in response_iterator:
-                print(f'The client got the update stream: {update}')
                 structured_results = [
                     MessageToDict(result)
                     for result in update.results
                 ]
                 results.append(structured_results)
-            #     # # TODO: fit this into the data model!
-            #     # result = {
-            #     #     "job_id": update.job_id,
-            #     #     "last_updated": update.last_updated,
-            #     #     "results": update.results
-            #     # }
-            #     # results.append(result)
-            #     # print(f'Got result: {result}')
 
             return results
 

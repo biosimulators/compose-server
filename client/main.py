@@ -7,6 +7,7 @@ Author: Alexander Patrie <@AlexPatrie>
 import json
 import os
 import shutil
+import typing
 import uuid
 import sys
 import zlib
@@ -110,7 +111,8 @@ APP_ORIGINS = [
     'https://biosimulations.dev',
     'https://biosimulations.org',
     'https://bio.libretexts.org',
-    'https://compose.biosimulations.org'
+    'https://compose.biosimulations.org',
+    '*'
 ]
 
 db_conn_gateway = MongoConnector(connection_uri=MONGO_URI, database_id=DEFAULT_DB_NAME)
@@ -118,7 +120,7 @@ router = APIRouter()
 app = FastAPI(title=APP_TITLE, version=APP_VERSION, servers=APP_SERVERS)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=APP_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
@@ -166,29 +168,11 @@ class ClientHandler:
             raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")
 
     @classmethod
-    def submit_run(cls, last_updated: str, duration: int, pickle_path: str, job_id: str, vivarium_id: str) -> list[list[dict[str, str | dict]]]:
-        with grpc.insecure_channel(LOCAL_GRPC_MAPPING) as channel:
-            stub = simulation_pb2_grpc.VivariumServiceStub(channel)
-            request = simulation_pb2.VivariumRequest(
-                last_updated=last_updated,
-                duration=duration,
-                pickle_path=pickle_path,
-                job_id=job_id,
-                vivarium_id=vivarium_id
-            )
-
-            response_iterator = stub.StreamVivarium(request)
-
-            # TODO: the following block should be generalized (used by many)
-            results = []
-            for update in response_iterator:
-                structured_results = [
-                    MessageToDict(result)
-                    for result in update.results
-                ]
-                results.append(structured_results)
-
-            return results
+    def get_vivarium(cls, vivarium_id: str) -> Vivarium:
+        temp_dir = mkdtemp()
+        vivarium = hydrate_pickle(vivarium_id, temp_dir)
+        shutil.rmtree(temp_dir)
+        return vivarium
 
 
 @app.post(
@@ -276,21 +260,6 @@ async def run_vivarium(duration: int, vivarium_id: str = Query(default=None)):
         finally:
             channel.close()
 
-        # try:
-            #     for update in response_iterator:
-            #         structured_results = [
-            #             MessageToDict(result) for result in update.results
-            #         ]
-            #         yield f"data: {json.dumps(structured_results)}\n\n"
-            #         # yield json.dumps({
-            #         #     "job_id": update.job_id,
-            #         #     "last_updated": update.last_updated,
-            #         #     "results": structured_results
-            #         # }) + "\n"
-            # except grpc.RpcError as e:
-            #     print(f"gRPC Error: {e.details()}")
-            #     yield f"data: ERROR: {e.details()}\n\n"
-
     return StreamingResponse(event_stream(), media_type="application/json")
 
 
@@ -303,12 +272,55 @@ async def run_vivarium(duration: int, vivarium_id: str = Query(default=None)):
 )
 async def get_document(vivarium_id: str):
     # hydrate pickle into vivarium
-    temp_dir = mkdtemp()
-    vivarium: Vivarium = hydrate_pickle(vivarium_id, temp_dir)
+    vivarium: Vivarium = ClientHandler.get_vivarium(vivarium_id)
+    return vivarium.make_document()
 
-    # clean temp dir
-    shutil.rmtree(temp_dir)
 
+@app.post(
+    '/add-process',
+    name="Add process",
+    operation_id="add-process",
+)
+async def add_process(
+        vivarium_id: str,
+        process_name: str,
+        process_id: str,
+        config: dict[str, typing.Any] | None = None,
+        inputs: dict[str, typing.Any] | None = None,
+        outputs: dict[str, typing.Any] | None = None
+):
+    vivarium: Vivarium = ClientHandler.get_vivarium(vivarium_id)
+    vivarium.add_process(
+        name=process_name,
+        process_id=process_id,
+        config=config,
+        inputs=inputs,
+        outputs=outputs
+    )
+
+    write_pickle(vivarium, vivarium_id)
+    return vivarium.make_document()
+
+
+@app.post(
+    '/add-object',
+    name="Add object",
+    operation_id="add-object",
+)
+async def add_object(
+        vivarium_id: str,
+        name: str,
+        path: list[str] | None = None,
+        value: typing.Any | None = None,
+):
+    vivarium: Vivarium = ClientHandler.get_vivarium(vivarium_id)
+    vivarium.add_object(
+        name=name,
+        path=path,
+        value=value,
+    )
+
+    write_pickle(vivarium, vivarium_id)
     return vivarium.make_document()
 
 

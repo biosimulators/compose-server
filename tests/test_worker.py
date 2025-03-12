@@ -5,12 +5,10 @@ import json
 from dotenv import load_dotenv
 from process_bigraph import pp
 
-from shared.database import MongoConnector
+from shared.connect import MongoConnector
 from shared.environment import DEFAULT_DB_NAME, ENV_PATH, PROJECT_ROOT_PATH
 from shared.dynamic_env import create_dynamic_environment
 from shared.log_config import setup_logging
-from worker.workers.composition import CompositionWorker
-
 
 load_dotenv(ENV_PATH)
 

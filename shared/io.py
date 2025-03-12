@@ -13,6 +13,14 @@ from fastapi import UploadFile
 from google.cloud import storage
 
 
+async def write_local_file(temp_dir: str, uploaded_file: UploadFile) -> Path:
+    temp_file = os.path.join(temp_dir, uploaded_file.filename)
+    with open(temp_file, "wb") as f:
+        uploaded = await uploaded_file.read()
+        f.write(uploaded)
+    return Path(temp_file)
+
+
 def check_upload_file_extension(file: UploadFile, purpose: str, ext: str, message: str = None) -> bool:
     if not file.filename.endswith(ext):
         msg = message or f"Files for {purpose} must be passed in {ext} format."

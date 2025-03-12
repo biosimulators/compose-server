@@ -132,31 +132,3 @@ async def submit_utc_run(
     except Exception as e:
         logger.error(str(e))
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# -- spec validation --
-
-def check_composition(document_data: Dict) -> ValidatedComposition:
-    validation = {'valid': True}
-
-    # validation 1 (fit data model)
-    try:
-        validation['composition'] = deserialize_composition(document_data)
-    except:
-        validation['valid'] = False
-        validation['composition'] = None
-
-    # validation 2
-    invalid_nodes = []
-    for node_name, node_spec in document_data.items():
-        if "emitter" not in node_name:
-            try:
-                assert node_spec["inputs"], f"{node_name} is missing inputs"
-                assert node_spec["outputs"], f"{node_name} is missing outputs"
-            except AssertionError as e:
-                invalid_node = {node_name: str(e)}
-                invalid_nodes.append(invalid_node)
-                validation['valid'] = False
-
-    validation['invalid_nodes'] = invalid_nodes if len(invalid_nodes) else None
-    return ValidatedComposition(**validation)

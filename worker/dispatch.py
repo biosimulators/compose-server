@@ -22,6 +22,7 @@ import json
 import tempfile
 
 import os
+from dataclasses import dataclass
 from typing import Any, Mapping, List
 
 import bsp
@@ -30,26 +31,43 @@ from bsp import app_registrar
 from bsp.processes.simple_membrane_process import SimpleMembraneProcess
 
 from shared.io import download_file_from_bucket
-from shared.database import MongoConnector
+from shared.connect import MongoConnector
 from shared.environment import DEFAULT_BUCKET_NAME
 from shared.log_config import setup_logging
 from worker.sim_runs.runs import RunsWorker
 from shared.utils import handle_exception
+from shared.data_model import BaseClass, StateData
 
 
 logger = setup_logging(__file__)
 
 
-class CompositionState(dict):
-    """That which is exported by Composite.save()"""
-    def __new__(cls, *args, **kwargs):
-        return super(CompositionState, cls).__new__(cls, *args, **kwargs)
+# class CompositionState(dict):
+#     """That which is exported by Composite.save()"""
+#     def __new__(cls, *args, **kwargs):
+#         return super(CompositionState, cls).__new__(cls, *args, **kwargs)
+#
+#
+# class ResultData(dict):
+#     """That which is exported by Composite.gather_results()"""
+#     def __new__(cls, *args, **kwargs):
+#         return super(ResultData, cls).__new__(cls, *args, **kwargs)
 
 
-class ResultData(dict):
-    """That which is exported by Composite.gather_results()"""
-    def __new__(cls, *args, **kwargs):
-        return super(ResultData, cls).__new__(cls, *args, **kwargs)
+@dataclass
+class CompositionState(StateData):
+    pass
+
+
+@dataclass
+class ResultData(StateData):
+    pass
+
+
+@dataclass
+class ServerResponse:
+    results: ResultData
+    state: CompositionState
 
 
 class JobDispatcher(object):
@@ -64,26 +82,29 @@ class JobDispatcher(object):
         self.timeout = timeout * 60
 
     @property
-    def current_jobs(self) -> List[Mapping[str, Any]]:
-        return self.db_connector.get_jobs()
+    def db_io(self) -> bool:
+        return self.db_connector is not None
 
     async def run(self, limit: int = 5, wait: int = 5):
-        i = 0
-        while i < limit:
-            for job in self.current_jobs:
-                job_id = job['job_id']
-                if job_id.startswith("run"):
-                    await self.dispatch_run(job)
-                elif job_id.startswith("composition") or job_id.startswith('run-mem3dg-'):
-                    await self.dispatch_composition(job)
-            i += 1
-            await asyncio.sleep(wait)
+        if self.db_io:
+            i = 0
+            while i < limit:
+                for job in self.db_connector.get_jobs():
+                    job_id = job['job_id']
+                    if job_id.startswith("run"):
+                        await self.dispatch_run(job)
+                    elif job_id.startswith("composition") or job_id.startswith('run-mem3dg-'):
+                        await self.dispatch_composition(job)
+                i += 1
+                await asyncio.sleep(wait)
+        else:
+            raise ValueError("You cannot call this method if a database connector is not provided in this class' constructor.")
 
     def create_dynamic_environment(self, job: Mapping[str, Any]) -> int:
         # TODO: implement this
         return 0
 
-    async def dispatch_composition(self, job: Mapping[str, Any]):
+    async def dispatch_composition(self, job: Mapping[str, Any]) -> ServerResponse:
         job_status = job["status"]
         job_id = job["job_id"]
         if job_status.lower() == "pending":
@@ -92,7 +113,8 @@ class JobDispatcher(object):
                 self.create_dynamic_environment(job)
 
                 # change job status to IN_PROGRESS
-                await self.db_connector.update_job(job_id=job_id, status="IN_PROGRESS")
+                if self.db_io:
+                    await self.db_connector.update_job(job_id=job_id, status="IN_PROGRESS")
 
                 # get request params and parse remote file uploads if needed
                 input_state = job["spec"]
@@ -118,19 +140,25 @@ class JobDispatcher(object):
                 results = self.generate_composition_results(input_state, duration)
                 state = self.generate_composition_state(composition)
 
-                # change status to complete and write results in DB
-                await self.db_connector.update_job(
-                    job_id=job_id,
-                    status="COMPLETE",
-                    results=results
-                )
+                if self.db_io:
+                    # change status to complete and write results in DB
+                    await self.db_connector.update_job(
+                        job_id=job_id,
+                        status="COMPLETE",
+                        results=results
+                    )
 
-                # write new result state to states collection
-                await self.db_connector.write(
-                    collection_name="result_states",
-                    job_id=job_id,
-                    data=state,
-                    last_updated=self.db_connector.timestamp()
+                    # write new result state to states collection
+                    await self.db_connector.write(
+                        collection_name="result_states",
+                        job_id=job_id,
+                        data=state,
+                        last_updated=self.db_connector.timestamp()
+                    )
+
+                return ServerResponse(
+                    results=results,
+                    state=state,
                 )
             except Exception as e:
                 message = handle_exception(scope=job_id + str(e).strip())
@@ -145,12 +173,16 @@ class JobDispatcher(object):
         )
 
     def generate_composition_results(self, composition: Composite, duration: int) -> ResultData:
-        # run the composition
-        composition.run(duration)
+        try:
+            # run the composition
+            composition.run(duration)
 
-        # get the results formatted from emitter
-        results = composition.gather_results()[("emitter",)]
-        return ResultData(**results)
+            # get the results formatted from emitter
+            results = composition.gather_results()[("emitter",)]
+            return ResultData(**results)
+        except:
+            msg = handle_exception("composition")
+            return ResultData(error=msg)
 
     def generate_composition_state(self, composition: Composite) -> CompositionState:
         temp_dir = tempfile.mkdtemp()

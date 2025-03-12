@@ -1,7 +1,6 @@
-# FROM condaforge/miniforge3:24.9.2-0
-FROM condaforge/miniforge3:latest
+FROM condaforge/miniforge3:24.9.2-0
 
-LABEL org.opencontainers.image.title="bio-compose-server-worker" \
+LABEL org.opencontainers.image.title="bio-compose-server-gateway" \
     org.opencontainers.image.description="Base Docker image for BioCompose REST API management, job processing, and datastorage with MongoDB, ensuring scalable and robust performance." \
     org.opencontainers.image.url="https://compose.biosimulators.org/" \
     org.opencontainers.image.source="https://github.com/biosimulators/bio-compose-server" \
@@ -9,37 +8,6 @@ LABEL org.opencontainers.image.title="bio-compose-server-worker" \
     org.opencontainers.image.vendor="BioSimulators Team"
 
 ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update \
-    && apt-get install -y \
-        meson \
-        g++ \
-        gfortran \
-        libblas-dev \
-        liblapack-dev \
-        libgfortran5 \
-        libhdf5-dev \
-        libhdf5-serial-dev \
-        libatlas-base-dev \
-        cmake \
-        make \
-        git \
-        build-essential \
-        python3-dev \
-        swig \
-        libc6-dev \
-        libx11-dev \
-        libc6 \
-        libgl1-mesa-dev \
-        pkg-config \
-        curl \
-        tar \
-        libgl1-mesa-glx \
-        libice6 \
-        libsm6 \
-        gnupg \
-        libstdc++6 \
-        && apt-get clean
 
 # copy assets
 COPY assets/docker/config/.biosimulations.json /.google/.bio-compose.json
@@ -59,15 +27,15 @@ COPY ./common /app/common
 
 RUN echo "Server" > /app/README.md \
     && mkdir /app/config
-
+#
 RUN conda update -n base -c conda-forge conda \
     && conda env create -f /app/environment.yml -y \
-    && conda install -n compose-server conda-forge::readdy -y \
-    && conda run -n compose-server pip install -e .
+    && conda run -n compose-server pip install -e . \
+    && conda run -n compose-server python /app/gateway/openapi_spec.py
 
-RUN conda env create -f /app/environment.yml -y \
-    && conda install -n compose-server conda-forge::readdy -y \
-    && conda run -n compose-server pip install -e .
+# CMD ["conda", "run", "-n", "compose-server", "uvicorn", "gateway.main:app", "--host", "0.0.0.0", "--port", "3001", "--reload"]
 
-CMD ["conda", "run", "-n", "compose-server", "python3", "worker/main.py"]
+# EXPOSE 3001
+
+CMD ["conda", "run", "-n", "compose-server", "uvicorn", "gateway.main:app", "--host", "0.0.0.0", "--port", "3001", "--reload"]
 

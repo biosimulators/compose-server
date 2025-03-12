@@ -2,6 +2,8 @@
 # -- worker models -- #
 import os
 from dataclasses import dataclass, asdict, field
+import abc
+import dataclasses as dc
 from enum import Enum
 from typing import *
 
@@ -19,14 +21,77 @@ class BaseModel(_BaseModel):
 @dataclass
 class BaseClass:
     """Base Python Dataclass multipurpose class with custom app configuration."""
-    def to_dict(self):
-        return asdict(self)
-
     def serialize(self):
         return asdict(self)
 
+    def set(self, attribute_id: str, value: float | int | str | bool | list | dict):
+        return setattr(self, attribute_id, value)
+
+    def get(self, attribute_id: str):
+        return getattr(self, attribute_id)
+
+    @property
+    def attributes(self) -> list[str]:
+        return list[self.__dataclass_fields__.keys()]
+
+
+# --- vivarium interface ---
+
+class DynamicData:
+    def __init__(self, **params):
+        """Dynamically define and set state attributes via **data."""
+        self._set_attributes(**params)
+
+    def _set_attributes(self, **params):
+        for k, v in params.items():
+            setattr(self, k, v)
+
+    def serialize(self) -> dict:
+        return self.__dict__
+
+    def __repr__(self) -> str:
+        return str(self.serialize())
+
+
+class StatefulDict(dict):
+    def __new__(cls, *args, **kwargs):
+        instance = super().__new__(cls)
+        return instance
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class Result(dict):
+    def __new__(cls, global_time: float, *args, **kwargs):
+        instance = super().__new__(cls)
+        instance.global_time = global_time
+        return instance
+
+    def __init__(self, global_time: float, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+@dataclass
+class RunResponse(BaseClass):
+    job_id: str
+    last_updated: str
+    results: list[dict[str, Any] | Result]
+
+
+@dataclass
+class Results:
+    data: list[Result]
+
 
 # -- requests --
+
+@dataclass
+class FileUpload:
+    location: str
+    job_id: str
+    status: str
+
 
 @dataclass
 class ProcessMetadata(BaseClass):
@@ -56,7 +121,7 @@ class CompositionRun(Run):
     simulators: List[str]
     duration: int
     spec: Dict[str, Any]
-    results: Dict[str, Any] = field(default=None)
+    results: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -216,19 +281,38 @@ class PortStore(BaseClass):
 
 
 @dataclass
+class Port(BaseClass):
+    name: str
+    value: Any
+
+
+@dataclass
+class InputPort(Port):
+    pass
+
+
+@dataclass
+class OutputPort(Port):
+    pass
+
+
+@dataclass
 class CompositionNode(BaseClass):
     name: str
     _type: str
     address: str
-    config: Dict[str, Any]
-    inputs: Dict[str, List[str]]
-    outputs: Optional[Dict[str, List[str]]] = None
+    config: DynamicData
+    inputs: Optional[list[InputPort]] = field(default_factory=list)
+    outputs: Optional[list[OutputPort]] = field(default_factory=list)
 
-    def to_dict(self):
-        rep = super().to_dict()
-        rep.pop("name")
-        if not self.outputs:
-            rep.pop("outputs")
+    def _format_port(self, ports: list[InputPort | OutputPort]) -> dict[str, Any]:
+        return {port.name: port.value for port in ports}
+
+    def export(self) -> dict[str, Any]:
+        rep = self.serialize()
+        del rep['name']
+        rep['inputs'] = self._format_port(self.inputs)
+        rep['outputs'] = self._format_port(self.outputs)
         return rep
 
 
@@ -239,14 +323,11 @@ class CompositionSpec(BaseClass):
         spec = CompositionSpec(nodes=nodes, emitter_mode='ports')
         composite = Composition({'state': spec
     """
-    nodes: List[CompositionNode]
-    job_id: str
-    emitter_mode: str = "all"
+    nodes: list[CompositionNode]
 
-    @property
-    def spec(self):
+    def export(self):
         return {
-            node_spec.name: node_spec.to_dict()
+            node_spec.name: node_spec.export()
             for node_spec in self.nodes
         }
 
@@ -269,6 +350,7 @@ class SmoldynOutput(FileResponse):
 class ValidatedComposition(BaseClass):
     valid: bool
     invalid_nodes: Optional[list[dict[str, str]]] = field(default=None)
+    composition: Optional[CompositionSpec] = field(default=None)
 
 
 @dataclass
@@ -294,6 +376,12 @@ class IncompleteFileJob(BaseClass):
     source: str
 
 
+@dataclass
+class MembraneConfig(BaseClass):
+    characteristic_time_step: float
+
+
+
 class JobStatuses:
     PENDING = "PENDING"
     IN_PROGRESS = "IN_PROGRESS"
@@ -315,6 +403,58 @@ APP_SERVERS = [
     #     "description": "Alternate Development server"
     # }
 ]
+
+
+# --- websocket client ---
+
+# This class represents a change to object values (x, y, z are placeholders)
+@dataclass
+class Packet(BaseClass):
+    dx: float
+    dy: float
+    dz: float
+
+
+# --- websocket server ---
+
+class StateData(DynamicData):
+    pass
+
+
+class AccumulationState(StateData):
+    def set_data(self, **params):
+        for k, v in params.items():
+            prev = getattr(self, k)
+            setattr(self, k, prev + v)
+
+
+@dataclass
+class Region(BaseClass):
+    region_id: str
+    metadata: dict[str, str]
+
+
+@dataclass
+class BodyRegionState(AccumulationState):
+    region: Region
+    state: AccumulationState
+
+
+@dataclass
+class Patient(BaseClass):
+    name: str
+    dob: str
+    age: float
+    history_metadata: dict[str, str]
+
+
+@dataclass
+class BodyState(AccumulationState):
+    patient: Patient
+    region_states: list[BodyRegionState]
+
+
+
 
 
 

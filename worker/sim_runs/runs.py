@@ -2,7 +2,7 @@ import os
 import tempfile
 from typing import Dict, Mapping, Any
 
-from shared.database import MongoConnector
+from shared.connect import MongoConnector
 from shared.environment import DEFAULT_BUCKET_NAME
 from shared.io import download_file, format_smoldyn_configuration, write_uploaded_file
 from shared.data_model import OutputFile

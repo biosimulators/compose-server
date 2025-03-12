@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/any.proto";
+
+package compose;
+
+service VivariumService {
+    rpc StreamVivarium (VivariumRequest) returns (stream SimulationUpdate);
+}
+
+message VivariumRequest {
+    string last_updated = 1;
+    int32 duration = 2;
+    string pickle_path = 3;
+    string job_id = 4;
+    string vivarium_id = 5;
+}
+
+message SimulationUpdate {
+    string job_id = 1;
+    string last_updated = 2;
+    repeated google.protobuf.Struct results = 3;
+}

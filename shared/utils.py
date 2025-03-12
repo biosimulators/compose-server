@@ -1,13 +1,47 @@
 import os
+import pickle
 import traceback
 import uuid
+from datetime import datetime
 from enum import Enum, EnumMeta
 from asyncio import sleep
+from tempfile import mkdtemp
 from typing import *
 from pprint import pformat
 
 import h5py
 import numpy as np
+from vivarium import Vivarium
+
+from shared.data_model import CompositionNode, CompositionSpec
+from shared.environment import DEFAULT_BUCKET_NAME
+from shared.io import download_file, upload_blob
+
+
+def timestamp() -> str:
+    return str(datetime.now())
+
+
+def deserialize_composition(composite_spec: dict) -> CompositionSpec:
+    """Converts pbg-native composition spec into a structured data model representation."""
+    nodes: list[CompositionNode] = []
+    for node_name, node_spec in composite_spec.items():
+        node = CompositionNode(name=node_name, **node_spec)
+        nodes.append(node)
+    nodes: list[CompositionNode] = [CompositionNode(name=node_name, **node_spec) for node_name, node_spec in composite_spec.items()]
+
+    # verification by fitting that tree of nodes into an expected structure (which is consumed by pbg.Composite())
+    return CompositionSpec(nodes=nodes)
+
+
+def serialize_composition(composite_spec: CompositionSpec):
+    return composite_spec.export()
+
+
+def pickle_composition(composite_spec: CompositionSpec, pickle_file: str) -> None:
+    serialized = composite_spec.export()
+    with open(pickle_file, "wb") as f:
+        pickle.dump(serialized, f)
 
 
 def clean_temp_files(temp_files: List[os.PathLike[str] | str]):

@@ -16,13 +16,19 @@ from functools import partial
 
 
 import dotenv
+import grpc
 import uvicorn
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query, APIRouter, Body, WebSocket
 from process_bigraph import Process, pp, Composite
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from pydantic import BeforeValidator
+from google.protobuf.struct_pb2 import Struct
+from google.protobuf.any_pb2 import Any
 
+
+from client.submit_runs import submit_utc_run, submit_pymem3dg_run
+from common.proto import simulation_pb2_grpc, simulation_pb2
 from shared.connect import MongoConnector
 from yaml import compose
 
@@ -33,7 +39,7 @@ from shared.environment import (
     ENV_PATH,
     DEFAULT_DB_NAME,
     DEFAULT_JOB_COLLECTION_NAME,
-    DEFAULT_BUCKET_NAME
+    DEFAULT_BUCKET_NAME, LOCAL_GRPC_MAPPING
 )
 from shared.data_model import (
     BigraphRegistryAddresses,
@@ -61,9 +67,9 @@ from shared.data_model import (
     StateData,
     FileUpload
 )
-from gateway.handlers.submit import submit_utc_run, check_composition, submit_pymem3dg_run
-from gateway.handlers.health import check_client
 
+from client.health import check_client
+from shared.vivarium import CORE, check_composition, convert_process
 
 logger = setup_logging(__file__)
 
@@ -152,6 +158,54 @@ clients: List[WebSocket] = []
 
 
 # -- Composition: submit composition jobs --
+
+
+def submit_simulation(
+        job_id: str,
+        last_updated: str,
+        simulators: list[str],
+        duration: int,
+        spec: dict
+) -> list[dict]:
+    """Sends a single request-response message to the gRPC server."""
+    with grpc.insecure_channel(LOCAL_GRPC_MAPPING) as channel:
+        state = spec.get("state").copy()
+        print(f'Got spec: {state.keys()}')
+        del state['global_time']
+
+        stub = simulation_pb2_grpc.SimulationServiceStub(channel)
+        try:
+            # convert `spec` dictionary into a `map<string, Process>`
+            grpc_spec = {}
+            for key, value in state.items():
+                # TODO: handle this more comprehensively
+                if isinstance(value, dict) and "address" in value.keys():
+                    grpc_spec[key] = convert_process(value)
+
+            request = simulation_pb2.SimulationRequest(
+                job_id=job_id,
+                last_updated=last_updated,
+                simulators=simulators,
+                duration=duration,
+                spec=grpc_spec
+            )
+
+            response_iterator = stub.StreamSimulation(request)
+
+            results = []
+            for update in response_iterator:
+                result = {
+                    "job_id": update.job_id,
+                    "last_updated": update.last_updated,
+                    "results": update.results
+                }
+                results.append(result)
+                print(f'Got result: {result}')
+            return results
+        except grpc.RpcError as e:
+            raise HTTPException(status_code=500, detail=f"gRPC error: {e}")
+
+
 
 @app.post(
     "/get-process-metadata",
@@ -256,9 +310,8 @@ async def get_process_metadata(
     summary="Get process bigraph implementation addresses for composition specifications.")
 async def get_process_bigraph_addresses() -> BigraphRegistryAddresses:
     # TODO: adjust this. Currently, if the optional simulator dep is not included, the process implementations will not show up
-    from bsp import app_registrar
-    addresses = app_registrar.registered_addresses
-    version = "latest"
+    addresses: list[str] = list(CORE.process_registry.registry.keys())
+    version = "bsp:latest"
     return BigraphRegistryAddresses(registered_addresses=addresses, version=version)
 
 
@@ -270,42 +323,40 @@ async def get_process_bigraph_addresses() -> BigraphRegistryAddresses:
     summary="Get process bigraph implementation addresses for composition specifications.")
 async def get_bigraph_schema_types() -> list[BigraphSchemaType]:
     # TODO: adjust this. Currently, if the optional simulator dep is not included, the process implementations will not show up
-    from bsp import app_registrar
-    registered_types = []
-    for type_name, type_spec in app_registrar.core.types().items():
-        type_spec = BigraphSchemaType(type_id=type_name, default_value=type_spec.get("_default", {}), description=type_spec.get("_description"))
-        registered_types.append(type_spec)
-    return registered_types
+    return [
+        BigraphSchemaType(type_id=type_name, default_value=type_spec.get("_default", {}), description=type_spec.get("_description"))
+        for type_name, type_spec in CORE.types().items()
+    ]
 
 
 # TODO: make this more specific in checking
-@app.post(
-    "/validate-composition",
-    response_model=ValidatedComposition,
-    tags=["Composition"],
-    operation_id="validate-composition",
-    summary="Validate Simulation Experiment Design specification file.",
-)
-async def validate_composition(
-        spec_file: UploadFile = File(..., description="Composition JSON File"),
-) -> ValidatedComposition:
-    # validate filetype
-    if not spec_file.filename.endswith('.json') and spec_file.content_type != 'application/json':
-        raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")
-
-    # multifold IO verification:
-    try:
-        contents = await spec_file.read()
-        document_data: Dict = json.loads(contents)
-        return check_composition(document_data)
-    except json.JSONDecodeError as e:
-        message = handle_exception("validate-composition-json-decode-error") + f'-{str(e)}'
-        logger.error(message)
-        raise HTTPException(status_code=400, detail=message)
-    except Exception as e:
-        message = handle_exception("validate-composition") + f'-{str(e)}'
-        logger.error(message)
-        raise HTTPException(status_code=400, detail=message)
+# @app.post(
+#     "/validate-composition",
+#     # response_model=ValidatedComposition,
+#     tags=["Composition"],
+#     operation_id="validate-composition",
+#     summary="Validate Simulation Experiment Design specification file.",
+# )
+# async def validate_composition(
+#         spec_file: UploadFile = File(..., description="Composition JSON File"),
+# ) -> ValidatedComposition:
+#     # validate filetype
+#     if not spec_file.filename.endswith('.json') and spec_file.content_type != 'application/json':
+#         raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")
+#
+#     # multifold IO verification:
+#     try:
+#         contents = await spec_file.read()
+#         document_data: Dict = json.loads(contents)
+#         return check_composition(document_data)
+#     except json.JSONDecodeError as e:
+#         message = handle_exception("validate-composition-json-decode-error") + f'-{str(e)}'
+#         logger.error(message)
+#         raise HTTPException(status_code=400, detail=message)
+#     except Exception as e:
+#         message = handle_exception("validate-composition") + f'-{str(e)}'
+#         logger.error(message)
+#         raise HTTPException(status_code=400, detail=message)
 
 
 @app.post(
@@ -335,7 +386,7 @@ async def upload_file(
 
 @app.post(
     "/submit-composition",
-    response_model=CompositionRun,
+    # response_model=CompositionRun,
     tags=["Composition"],
     operation_id="submit-composition",
     summary="Submit composition spec for simulation",
@@ -344,7 +395,7 @@ async def submit_composition(
         composition_file: UploadFile = File(..., description="Composition JSON File"),
         duration: int = Query(..., description="Duration of simulation"),
         # simulators: list[str] = Query(..., description="Simulator package names to use for implementation"),
-) -> CompositionRun:
+) -> list[dict]:  # CompositionRun:
     """We should assume that any file specifications have already been validated and remotely uploaded."""
     if not composition_file.filename.endswith('.json') and composition_file.content_type != 'application/json':
         raise HTTPException(status_code=400, detail="Invalid file type. Only JSON files are supported.")
@@ -365,7 +416,14 @@ async def submit_composition(
             duration=duration
         )
 
-        return CompositionRun(**write_confirmation)
+        # return CompositionRun(**write_confirmation)
+        return submit_simulation(
+            job_id=job_id,
+            duration=duration,
+            last_updated=db_conn_gateway.timestamp(),
+            simulators=[],
+            spec=composite_spec
+        )
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON format.")
     except Exception as e:

@@ -35,6 +35,12 @@ RUN echo "Server" > /app/README.md \
     && mkdir /app/config \
     && chmod +x /app/entrypoint.sh
 #
+
+# RUN conda update -n base -c conda-forge conda \
+#     && conda env create -f /app/env.yml -y \
+#     && conda update -n compose-server numpy -y \
+#     && pip install -e .
+
 RUN conda update -n base -c conda-forge conda \
     && conda env create -f /app/environment.yml -y \
     && conda run -n server poetry self update \

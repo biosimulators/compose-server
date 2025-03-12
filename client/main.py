@@ -280,6 +280,7 @@ async def get_document(vivarium_id: str):
     '/add-process',
     name="Add process",
     operation_id="add-process",
+    tags=["Add Data"]
 )
 async def add_process(
         vivarium_id: str,
@@ -306,6 +307,7 @@ async def add_process(
     '/add-object',
     name="Add object",
     operation_id="add-object",
+    tags=["Add Data"]
 )
 async def add_object(
         vivarium_id: str,

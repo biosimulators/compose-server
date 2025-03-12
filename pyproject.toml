@@ -17,7 +17,20 @@ dependencies = [
     "pymongo",
     "biosimulator-processes",
     "imageio",
-    "nbformat"
+    "nbformat",
+    "websockets",
+    "grpcio",
+    "grpcio-tools"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "deptry" ,
+    "mypy",
+    "pre-commit",
+    "tox"
 ]
 
 # also make sure to install readdy and pymem3dg:
@@ -33,12 +46,72 @@ packages = [
 ]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling", "setuptools_scm"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["gateway", "shared", "worker", "common"]
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "node-and-date"
+
+# [tool.hatch.envs.default]
+# dependencies = [
+#     "conda: numpy",
+#     "conda: scipy",
+#     "conda: matplotlib",
+#     "conda: pybind11"
+# ]
 
 
-[tool.pytest.ini_options]
-addopts = "-s"
-testpaths = ["tests"]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
+
+
+
+# [project]
+# name = "compose-server"
+# version = "0.0.1"
+# readme ="README.md"
+# description = "Backend for BioCompose: a microservices-based data service leveraging Kubernetes for efficient orchestration of bio-chemical simulation comparisons."
+# authors = [{name = "Alex Patrie", email = "alexanderpatrie@gmail.com"}]
+# requires-python = ">=3.10"
+# dependencies = [
+#     "uvicorn",
+#     "google-cloud-storage",
+#     "chardet",
+#     "fastapi",
+#     "python-multipart",
+#     "h5py",
+#     "python-dotenv",
+#     "python-libsbml",
+#     "pymongo",
+#     "biosimulator-processes",
+#     "imageio",
+#     "nbformat"
+# ]
+#
+# # also make sure to install readdy and pymem3dg:
+# # conda install -n bsp conda-forge::pymem3dg -y \
+# #     && conda install -n bsp conda-forge::readdy -y
+#
+# [tool.poetry]
+# packages = [
+#     {include = "gateway"},
+#     {include = "shared"},
+#     {include = "worker"},
+#     {include = "common"}
+# ]
+#
+# [build-system]
+# requires = ["poetry-core"]
+# build-backend = "poetry.core.masonry.api"
+#
+#
+# [tool.pytest.ini_options]
+# addopts = "-s"
+# testpaths = ["tests"]
+# asyncio_mode = "auto"
+# asyncio_default_fixture_loop_scope = "function"

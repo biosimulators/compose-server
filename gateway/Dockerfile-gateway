@@ -27,11 +27,16 @@ COPY ./common /app/common
 
 RUN echo "Server" > /app/README.md \
     && mkdir /app/config
-#
+
 RUN conda update -n base -c conda-forge conda \
-    && conda env create -f /app/environment.yml -y \
-    && conda run -n compose-server pip install -e . \
-    && conda run -n compose-server python /app/gateway/openapi_spec.py
+    && conda env create -f /app/env.yml -y \
+    && conda update -n compose-server numpy -y \
+    && pip install -e .
+
+# RUN conda update -n base -c conda-forge conda \
+#     && conda env create -f /app/environment.yml -y \
+#     && conda run -n compose-server pip install -e . \
+#     && conda run -n compose-server python /app/gateway/openapi_spec.py
 
 # CMD ["conda", "run", "-n", "compose-server", "uvicorn", "gateway.main:app", "--host", "0.0.0.0", "--port", "3001", "--reload"]
 

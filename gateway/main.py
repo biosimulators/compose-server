@@ -539,6 +539,8 @@ async def run_mem3dg_process(
         # geometry_parameters: Optional[Dict[str, Union[float, int]]] = None,
         mesh_file: UploadFile = File(...),
 )-> Mem3dgRun:
+    from bsp import app_registrar
+
     try:
         job_id = 'run-mem3dg-' + str(uuid.uuid4())
         uploaded_file_location = await write_uploaded_file(
@@ -569,6 +571,14 @@ async def run_mem3dg_process(
             parameters_config=parameters,
             duration=duration
         )
+
+        from vivarium.vivarium import Vivarium
+
+        viv = Vivarium(
+            processes=app_registrar.core.process_registry.registry,
+            document=mem3dg_run.spec
+        )
+        print(f'Vivarium: {viv}')
 
         return mem3dg_run
     except Exception as e:

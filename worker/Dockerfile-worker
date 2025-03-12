@@ -9,36 +9,36 @@ LABEL org.opencontainers.image.title="bio-compose-server-worker" \
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update \
-    && apt-get install -y \
-        meson \
-        g++ \
-        gfortran \
-        libblas-dev \
-        liblapack-dev \
-        libgfortran5 \
-        libhdf5-dev \
-        libhdf5-serial-dev \
-        libatlas-base-dev \
-        cmake \
-        make \
-        git \
-        build-essential \
-        python3-dev \
-        swig \
-        libc6-dev \
-        libx11-dev \
-        libc6 \
-        libgl1-mesa-dev \
-        pkg-config \
-        curl \
-        tar \
-        libgl1-mesa-glx \
-        libice6 \
-        libsm6 \
-        gnupg \
-        libstdc++6 \
-        && apt-get clean
+# RUN apt-get update \
+#     && apt-get install -y \
+#         meson \
+#         g++ \
+#         gfortran \
+#         libblas-dev \
+#         liblapack-dev \
+#         libgfortran5 \
+#         libhdf5-dev \
+#         libhdf5-serial-dev \
+#         libatlas-base-dev \
+#         cmake \
+#         make \
+#         git \
+#         build-essential \
+#         python3-dev \
+#         swig \
+#         libc6-dev \
+#         libx11-dev \
+#         libc6 \
+#         libgl1-mesa-dev \
+#         pkg-config \
+#         curl \
+#         tar \
+#         libgl1-mesa-glx \
+#         libice6 \
+#         libsm6 \
+#         gnupg \
+#         libstdc++6 \
+#         && apt-get clean
 
 # copy assets
 COPY assets/docker/config/.biosimulations.json /.google/.bio-compose.json
@@ -60,9 +60,14 @@ RUN echo "Server" > /app/README.md \
     && mkdir /app/config
 
 RUN conda update -n base -c conda-forge conda \
-    && conda env create -f /app/environment.yml -y \
-    && conda install -n compose-server conda-forge::readdy -y \
-    && conda run -n compose-server pip install -e .
+    && conda env create -f /app/env.yml -y \
+    && conda update -n compose-server numpy -y \
+    && pip install -e .
+
+# RUN conda update -n base -c conda-forge conda \
+#     && conda env create -f /app/environment.yml -y \
+#     && conda install -n compose-server conda-forge::readdy -y \
+#     && conda run -n compose-server pip install -e .
 
 CMD ["conda", "run", "-n", "compose-server", "python3", "worker/main.py"]
 

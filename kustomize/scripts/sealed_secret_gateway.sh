@@ -5,14 +5,39 @@
 #   namespace
 #   mongo_user
 #   mongo_pswd
+#   google_creds_path
 #
 #   and outputs a sealed secret to stdout
-# Example: ./sealed_secret_gateway.sh remote pswd12345 pswd39393 mongo_user pswd292929 > output.yaml
+# and an optional --cert <filename.pem> argument to specify the certificate file for kubeseal
+# Example: ./sealed_secret_gateway.sh remote mongo_user pswd292929 /path/to/gcs-cred-file [--cert filename.pem] > output.yaml
 
-# validate the number of arguments
+# note that for GKE, the cert file is needed and can be extracted by running:
+# kubeseal --fetch-cert > filename.pem
+# or
+# kubectl get secret -n kube-system -l sealedsecrets.bitnami.com/sealed-secrets-key -o yaml \
+#     | grep tls.crt | awk '{print $2}' | base64 --decode > filename.pem
+
+# Initialize variables
+CERT_ARG=""
+
+# Parse optional arguments
+while [[ "$1" == --* ]]; do
+  case "$1" in
+    --cert)
+      CERT_ARG="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1"
+      exit 1
+      ;;
+  esac
+done
+
+# Validate the number of positional arguments
 if [ "$#" -ne 4 ]; then
     echo "Illegal number of parameters"
-    echo "Usage: ./sealed_secret_api.sh <namespace> <mongo_user> <mongo_pswd> <google_creds_path>"
+    echo "Usage: ./sealed_secret_gateway.sh <namespace> <mongo_user> <mongo_pswd> <google_creds_path>"
     exit 1
 fi
 
@@ -26,8 +51,4 @@ kubectl create secret generic ${SECRET_NAME} --dry-run=client \
       --from-literal=mongo-username="${MONGO_USERNAME}" \
       --from-literal=mongo-password="${MONGO_PASSWORD}" \
       --from-literal=google-application-credentials="${GOOGLE_APPLICATION_CREDENTIALS}" \
-      --namespace="${NAMESPACE}" -o yaml | kubeseal \
-      --format yaml \
-      --cert=/Users/alexanderpatrie/.ssh/sealed_secrets_biosimulations.pem
-#       --namespace="${NAMESPACE}" -o yaml | kubeseal --controller-namespace kube-system --cert /Users/alexanderpatrie/.ssh/pub-cert.pem --format yaml > mysealedsecret.yaml
-
+      --namespace="${NAMESPACE}" -o yaml | kubeseal --format yaml ${CERT_ARG:+--cert=$CERT_ARG}
